@@ -1,0 +1,72 @@
+{
+  "bots": [
+    {
+      "id": "bot_muctotds_hucjj",
+      "botType": "ADVANCED",
+      "symbol": "POLUSDT",
+      "direction": "LONG",
+      "entryModel": "ORDERBOOK",
+      "status": "STOPPED",
+      "cycleMinutes": 10,
+      "cycleTriggerMinutes": 6,
+      "orderBookConfig": {
+        "trendDepth": 200,
+        "entryDepths": [
+          15,
+          20,
+          30,
+          60
+        ],
+        "longMinImbalance": 0.005,
+        "shortMaxImbalance": -0.005,
+        "minBidAskRatio": 0.9,
+        "minAskBidRatio": 0.9,
+        "counterTrendRequired": 3
+      },
+      "cycle": {
+        "number": 1,
+        "startedAt": "2026-09-22T15:22:22.857Z",
+        "scans": 0,
+        "total": 10,
+        "triggerMinutes": 0,
+        "requiredTriggerMinutes": 6,
+        "decision": "NEUTRAL",
+        "decisionHistory": []
+      },
+      "completedCycleHistory": [],
+      "maxEntries": 3,
+      "entryCount": 0,
+      "entrySignals": [],
+      "position": null,
+      "tpPercent": 1,
+      "slPercent": 0.8,
+      "killZone": {
+        "enabled": true,
+        "low": 0.104,
+        "high": null
+      },
+      "triggerLine": {
+        "enabled": true,
+        "price": 0.10583,
+        "armed": false,
+        "triggeredAt": null,
+        "initialized": false,
+        "waitingForReset": false,
+        "previousPrice": null,
+        "initializing": true,
+        "initializedAt": null
+      },
+      "lastScanAt": null,
+      "lastDecision": "NEUTRAL",
+      "lastPrice": null,
+      "lastAnalysis": null,
+      "logs": [
+        "[2026-09-22T15:22:22.857Z] Started | POLUSDT | LONG",
+        "[2026-09-22T15:22:22.857Z] Cycle: 10 minutes",
+        "[2026-09-22T15:22:22.857Z] Trigger Minutes: 6",
+        "[2026-09-22T15:22:22.857Z] Max Entries: 3",
+        "[2026-09-22T15:22:22.859Z] Trigger Line: ENABLED | Getting one startup market price..."
+      ]
+    }
+  ]
+}
