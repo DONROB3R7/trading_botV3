@@ -1,4 +1,5 @@
-const OrderBookModule = require("../modules/orderBook");
+const OrderBookModule =
+  require("../modules/orderBook");
 
 const {
   getOrderBook,
@@ -8,18 +9,30 @@ const {
   getTicker,
 } = require("../market/marketData");
 
+const WeexExecution =
+  require("../execution/weexExecution");
+
 const {
-  openPosition,
-} = require("../execution/weexExecution");
+  calculateOrder,
+} = require("../execution/orderCalculator");
 
 
 class AdvancedBot {
   constructor(config = {}) {
+
+    // ============================================================
+    // SAVE CONFIG
+    // ============================================================
+
+    this.config =
+      config;
+
     this.id =
       config.id ||
       `advanced_${Date.now()}`;
 
-    this.botType = "ADVANCED";
+    this.botType =
+      "ADVANCED";
 
     this.symbol =
       String(config.symbol || "")
@@ -36,11 +49,38 @@ class AdvancedBot {
 
 
     // ============================================================
+    // GLOBAL POSITION SETTINGS
+    // ============================================================
+
+    this.marginUSDT =
+      Number(config.marginUSDT ?? 0.5);
+
+    this.leverage =
+      Number(config.leverage ?? 10);
+
+    this.orderCalculation =
+      null;
+
+    this.execution =
+      new WeexExecution({
+        apiKey:
+          process.env.WEEX_API_KEY,
+
+        secretKey:
+          process.env.WEEX_API_SECRET,
+
+        passphrase:
+          process.env.WEEX_API_PASSPHRASE,
+      });
+
+
+    // ============================================================
     // ORDER BOOK CONFIGURATION
     // ============================================================
 
     this.orderBookConfig = {
-      trendDepth: 200,
+      trendDepth:
+        200,
 
       entryDepths: [
         15,
@@ -141,7 +181,7 @@ class AdvancedBot {
 
 
     // ============================================================
-    // TP / SL
+    // TP / SL SETTINGS
     // ============================================================
 
     this.tpPercent =
@@ -153,6 +193,107 @@ class AdvancedBot {
       Number(
         config.slPercent ?? 0.8
       );
+
+    this.dynamicSlPercent =
+      Number(
+        config.dynamicSlPercent ?? 3
+      );
+
+
+    // ============================================================
+    // TP POSITION SYNC DELAY
+    // ============================================================
+
+    this.tpPositionSyncDelayMs =
+      Math.max(
+        0,
+        Number(
+          config.tpPositionSyncDelayMs ??
+          (
+            Number(
+              config.tpPositionSyncDelaySeconds ??
+              10
+            ) * 1000
+          )
+        )
+      );
+
+
+    // ============================================================
+    // TP SYNC RUNTIME
+    // ============================================================
+
+    this.tpSyncTimer =
+      null;
+
+    this.tpSyncInProgress =
+      false;
+
+    this.tpSyncNumber =
+      0;
+
+
+    // ============================================================
+    // POSITION / SL / TP STATE
+    // ============================================================
+
+    this.positionState = {
+      side:
+        null,
+
+      entryPrice:
+        null,
+
+      averageEntryPrice:
+        null,
+
+      contracts:
+        0,
+
+      initialSLPrice:
+        null,
+
+      currentSLPrice:
+        null,
+
+      tpPrice:
+        null,
+
+      tpOrderId:
+        null,
+
+      winningGapPrice:
+        null,
+
+      winningGapPercent:
+        null,
+
+      tradeNumber:
+        0,
+
+      isWinner:
+        false,
+
+      lastExitPrice:
+        null,
+
+      lastExitReason:
+        null,
+
+      lastPositionSyncAt:
+        null,
+
+      lastPositionSyncError:
+        null,
+    };
+
+
+    // ============================================================
+    // LOCAL ENTRY HISTORY
+    // ============================================================
+
+    this.positionEntries =
+      [];
 
 
     // ============================================================
@@ -191,43 +332,6 @@ class AdvancedBot {
 
     // ============================================================
     // TRIGGER LINE
-    //
-    // IMPORTANT:
-    //
-    // triggerLine.price = CONFIGURED TRIGGER LINE.
-    //
-    // The first current WEEX price is ONLY used as a baseline.
-    // It NEVER replaces triggerLine.price.
-    //
-    // Example:
-    //
-    // Configured Trigger Line = 0.10583
-    // Current startup price  = 0.10738
-    //
-    // Trigger Line remains:
-    // 0.10583
-    //
-    // Startup price is only used to determine where the bot
-    // started relative to the Trigger Line.
-    //
-    // LONG:
-    //   If bot starts above line:
-    //   wait for a fresh move DOWN through the line.
-    //
-    //   If bot starts below line:
-    //   first wait for a fresh move ABOVE the line,
-    //   then wait for a fresh move DOWN through it.
-    //
-    // SHORT:
-    //   If bot starts below line:
-    //   wait for a fresh move UP through the line.
-    //
-    //   If bot starts above line:
-    //   first wait for a fresh move BELOW the line,
-    //   then wait for a fresh move UP through it.
-    //
-    // Trigger Line does NOT kill the bot.
-    // Trigger Line does NOT execute a trade.
     // ============================================================
 
     this.triggerLine = {
@@ -267,6 +371,19 @@ class AdvancedBot {
       initializedAt:
         null,
     };
+
+
+    // ============================================================
+    // TRIGGER LINE CHECK INTERVAL
+    // ============================================================
+
+    this.triggerLineCheckIntervalMs =
+      Math.max(
+        1000,
+        Number(
+          config.triggerLineCheckIntervalMs ?? 1000
+        )
+      );
 
 
     // ============================================================
@@ -366,10 +483,1125 @@ class AdvancedBot {
 
 
   // ============================================================
+  // ORDER CALCULATION
+  // ============================================================
+
+  async calculateOrderSize() {
+    this.orderCalculation =
+      await calculateOrder(
+        this.symbol,
+        this.marginUSDT,
+        this.leverage
+      );
+
+    this.log(
+      `Order Size | ` +
+      `margin=${this.orderCalculation.marginUSDT} USDT | ` +
+      `leverage=${this.orderCalculation.leverage}x | ` +
+      `contracts=${this.orderCalculation.contracts} | ` +
+      `notional=${this.orderCalculation.actualNotional.toFixed(4)} USDT | ` +
+      `estimatedMargin=${this.orderCalculation.estimatedMargin.toFixed(4)} USDT`
+    );
+
+    if (
+      this.orderCalculation.marginExceeded
+    ) {
+      this.log(
+        `Order Margin Warning | ` +
+        `Configured=${this.orderCalculation.marginUSDT.toFixed(4)} USDT | ` +
+        `Required=${this.orderCalculation.estimatedMargin.toFixed(4)} USDT | ` +
+        `Excess=${this.orderCalculation.marginDifference.toFixed(4)} USDT | ` +
+        `MinimumRequired=${this.orderCalculation.minimumRequiredMargin.toFixed(4)} USDT | ` +
+        `Status=${this.orderCalculation.marginStatus}`
+      );
+
+    } else {
+      this.log(
+        `Order Margin OK | ` +
+        `Configured=${this.orderCalculation.marginUSDT.toFixed(4)} USDT | ` +
+        `Required=${this.orderCalculation.estimatedMargin.toFixed(4)} USDT | ` +
+        `Status=${this.orderCalculation.marginStatus}`
+      );
+    }
+
+    return this.orderCalculation;
+  }
+
+
+  // ============================================================
+  // INITIAL SL
+  // ============================================================
+
+  calculateInitialSL(entryPrice) {
+    const entry =
+      Number(entryPrice);
+
+    const percent =
+      Number(this.slPercent);
+
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      !Number.isFinite(percent) ||
+      percent <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      this.direction === "LONG"
+    ) {
+      return (
+        entry *
+        (1 - percent / 100)
+      );
+    }
+
+    if (
+      this.direction === "SHORT"
+    ) {
+      return (
+        entry *
+        (1 + percent / 100)
+      );
+    }
+
+    return null;
+  }
+
+
+  // ============================================================
+  // TP FROM AVERAGE
+  // ============================================================
+
+  calculateTP(entryPrice) {
+    const entry =
+      Number(entryPrice);
+
+    const percent =
+      Number(this.tpPercent);
+
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      !Number.isFinite(percent) ||
+      percent <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      this.direction === "LONG"
+    ) {
+      return (
+        entry *
+        (1 + percent / 100)
+      );
+    }
+
+    if (
+      this.direction === "SHORT"
+    ) {
+      return (
+        entry *
+        (1 - percent / 100)
+      );
+    }
+
+    return null;
+  }
+
+
+  // ============================================================
+  // EXTRACT TP ORDER ID
+  // ============================================================
+
+  extractTPOrderId(result) {
+    if (!result) {
+      return null;
+    }
+
+    const candidates = [
+      result.orderId,
+      result.algoId,
+      result.data?.orderId,
+      result.data?.algoId,
+      result.response?.orderId,
+      result.response?.algoId,
+      result.response?.data?.orderId,
+      result.response?.data?.algoId,
+    ];
+
+    for (const candidate of candidates) {
+      if (
+        candidate !== undefined &&
+        candidate !== null &&
+        String(candidate).trim() !== ""
+      ) {
+        return String(candidate).trim();
+      }
+    }
+
+    return null;
+  }
+
+
+  // ============================================================
+  // RECORD POSITION ENTRY
+  // ============================================================
+
+  recordPositionEntry({
+    entryPrice,
+    contracts,
+    result,
+  } = {}) {
+    const price =
+      Number(entryPrice);
+
+    if (
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      this.log(
+        "Position entry recorded without valid entry price"
+      );
+
+      return;
+    }
+
+    const numericContracts =
+      Number(
+        contracts ??
+        this.orderCalculation?.contracts ??
+        0
+      );
+
+
+    // ==========================================================
+    // FIRST ENTRY
+    // ==========================================================
+
+    if (
+      this.entryCount === 1
+    ) {
+      const calculatedSL =
+        this.calculateInitialSL(
+          price
+        );
+
+      this.positionState.side =
+        this.direction;
+
+      this.positionState.entryPrice =
+        price;
+
+      this.positionState.averageEntryPrice =
+        price;
+
+      this.positionState.contracts =
+        Number.isFinite(numericContracts)
+          ? numericContracts
+          : 0;
+
+      this.positionState.initialSLPrice =
+        calculatedSL;
+
+      this.positionState.currentSLPrice =
+        calculatedSL;
+
+      this.positionState.tpPrice =
+        this.calculateTP(
+          price
+        );
+
+      this.positionState.tpOrderId =
+        null;
+
+      this.positionState.tradeNumber =
+        1;
+
+      this.positionState.isWinner =
+        false;
+
+      this.positionState.lastExitPrice =
+        null;
+
+      this.positionState.lastExitReason =
+        null;
+
+      this.position =
+        {
+          symbol:
+            this.symbol,
+
+          side:
+            this.direction,
+
+          entryPrice:
+            price,
+
+          averageEntryPrice:
+            price,
+
+          contracts:
+            this.positionState.contracts,
+
+          slPrice:
+            calculatedSL,
+
+          tpPrice:
+            this.positionState.tpPrice,
+
+          tpOrderId:
+            null,
+
+          openedAt:
+            new Date().toISOString(),
+
+          result:
+            result || null,
+        };
+
+      this.log(
+        `FIRST POSITION | ` +
+        `${this.direction} | ` +
+        `Entry=${price} | ` +
+        `Initial SL=${calculatedSL ?? "NONE"} | ` +
+        `TP=${this.positionState.tpPrice ?? "WAITING"}`
+      );
+    }
+
+
+    // ==========================================================
+    // PYRAMID ENTRY
+    // ==========================================================
+
+    else {
+      this.positionState.contracts +=
+        Number.isFinite(numericContracts)
+          ? numericContracts
+          : 0;
+
+      this.positionState.tradeNumber =
+        this.entryCount;
+
+      this.log(
+        `PYRAMID ENTRY ${this.entryCount} | ` +
+        `Entry=${price} | ` +
+        `NO NEW SL | ` +
+        `Existing SL=${this.positionState.currentSLPrice ?? "NONE"} | ` +
+        `Existing TP Order=${this.positionState.tpOrderId ?? "NONE"}`
+      );
+    }
+
+
+    // ==========================================================
+    // STORE LOCAL ENTRY
+    // ==========================================================
+
+    this.positionEntries.push({
+      number:
+        this.entryCount,
+
+      time:
+        new Date().toISOString(),
+
+      price:
+        price,
+
+      contracts:
+        numericContracts,
+
+      direction:
+        this.direction,
+    });
+
+
+    if (
+      this.positionEntries.length >
+      10
+    ) {
+      this.positionEntries.shift();
+    }
+
+
+    if (
+      this.position
+    ) {
+      this.position.contracts =
+        this.positionState.contracts;
+
+      this.position.slPrice =
+        this.positionState.currentSLPrice;
+
+      this.position.tpPrice =
+        this.positionState.tpPrice;
+
+      this.position.tpOrderId =
+        this.positionState.tpOrderId;
+    }
+  }
+
+
+  // ============================================================
+  // SCHEDULE TP POSITION SYNC
+  // ============================================================
+
+  scheduleTPPositionSync() {
+    if (
+      this.tpSyncTimer
+    ) {
+      clearTimeout(
+        this.tpSyncTimer
+      );
+
+      this.tpSyncTimer =
+        null;
+    }
+
+    const delay =
+      this.tpPositionSyncDelayMs;
+
+    this.log(
+      `TP POSITION SYNC scheduled | ` +
+      `Delay=${(delay / 1000).toFixed(1)}s`
+    );
+
+    this.tpSyncTimer =
+      setTimeout(
+        async () => {
+          this.tpSyncTimer =
+            null;
+
+          await this.syncTPFromWEEX();
+        },
+        delay
+      );
+  }
+
+
+  // ============================================================
+  // SYNC POSITION FROM WEEX
+  // ============================================================
+
+  async syncTPFromWEEX() {
+    if (
+      this.status !== "RUNNING"
+    ) {
+      return;
+    }
+
+    if (
+      this.entryCount <= 0
+    ) {
+      return;
+    }
+
+    if (
+      this.tpSyncInProgress
+    ) {
+      this.log(
+        "TP sync skipped | another TP sync is already running"
+      );
+
+      return;
+    }
+
+    this.tpSyncInProgress =
+      true;
+
+    this.tpSyncNumber +=
+      1;
+
+    const syncNumber =
+      this.tpSyncNumber;
+
+    try {
+      this.log(
+        `TP SYNC #${syncNumber} | ` +
+        `Requesting REAL WEEX position...`
+      );
+
+
+      // ========================================================
+      // KILL ZONE CHECK
+      // ========================================================
+
+      if (
+        this.killZone.enabled
+      ) {
+        const killed =
+          await this.checkPriceKillZone();
+
+        if (killed) {
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `ABORTED | Kill Zone triggered`
+          );
+
+          return;
+        }
+      }
+
+
+      // ========================================================
+      // ASK WEEX
+      // ========================================================
+
+      const position =
+        await this.execution.getPosition({
+          symbol:
+            this.symbol,
+
+          positionSide:
+            this.direction,
+        });
+
+
+      // ========================================================
+      // CONNECTION CHECK
+      // ========================================================
+
+      if (
+        !position ||
+        position.connected !== true
+      ) {
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          position?.reason ||
+          "WEEX position data unavailable";
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `WEEX position unavailable | ` +
+          `${this.positionState.lastPositionSyncError}`
+        );
+
+        return;
+      }
+
+
+      // ========================================================
+      // AUTHENTICATION CHECK
+      // ========================================================
+
+      if (
+        position.authenticated === false
+      ) {
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          "WEEX position request is not authenticated";
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `Authentication failed`
+        );
+
+        return;
+      }
+
+
+      this.log(
+        `TP SYNC #${syncNumber} | ` +
+        `WEEX connected=${position.connected} | ` +
+        `authenticated=${position.authenticated} | ` +
+        `hasPosition=${position.hasPosition}`
+      );
+
+
+      if (
+        position.hasPosition === false
+      ) {
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          "WEEX reports no open position";
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `WEEX reports NO OPEN POSITION | ` +
+          `Local position state preserved`
+        );
+
+        return;
+      }
+
+
+      // ========================================================
+      // READ REAL WEEX SIZE
+      // ========================================================
+
+      const weexSize =
+        Number(
+          position.size
+        );
+
+      if (
+        Number.isFinite(weexSize) &&
+        weexSize > 0
+      ) {
+        this.positionState.contracts =
+          weexSize;
+      }
+
+
+      // ========================================================
+      // READ REAL AVERAGE ENTRY
+      // ========================================================
+
+      let averageEntryPrice =
+        Number(
+          position.averageEntryPrice ??
+          position.avgEntryPrice ??
+          position.entryPrice ??
+          NaN
+        );
+
+
+      if (
+        !Number.isFinite(
+          averageEntryPrice
+        ) ||
+        averageEntryPrice <= 0
+      ) {
+        if (
+          typeof this.execution.calculateAverageEntry ===
+          "function"
+        ) {
+          averageEntryPrice =
+            this.execution.calculateAverageEntry({
+              openValue:
+                position.openValue,
+
+              size:
+                position.size,
+            });
+        }
+      }
+
+
+      if (
+        !Number.isFinite(
+          averageEntryPrice
+        ) ||
+        averageEntryPrice <= 0
+      ) {
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          "WEEX position received but average entry could not be calculated";
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `REAL POSITION FOUND but average entry is invalid`
+        );
+
+        return;
+      }
+
+
+      // ========================================================
+      // STORE REAL WEEX POSITION
+      // ========================================================
+
+      this.positionState.averageEntryPrice =
+        averageEntryPrice;
+
+      this.positionState.lastPositionSyncAt =
+        new Date().toISOString();
+
+      this.positionState.lastPositionSyncError =
+        null;
+
+
+      // ========================================================
+      // CALCULATE TP
+      // ========================================================
+
+      const newTP =
+        this.calculateTP(
+          averageEntryPrice
+        );
+
+      if (
+        !Number.isFinite(newTP) ||
+        newTP <= 0
+      ) {
+        throw new Error(
+          "Calculated TP is invalid"
+        );
+      }
+
+
+      const oldTP =
+        this.positionState.tpPrice;
+
+      this.positionState.tpPrice =
+        newTP;
+
+
+      if (
+        this.position
+      ) {
+        this.position.averageEntryPrice =
+          averageEntryPrice;
+
+        this.position.contracts =
+          this.positionState.contracts;
+
+        this.position.tpPrice =
+          newTP;
+
+        this.position.slPrice =
+          this.positionState.currentSLPrice;
+
+        this.position.tpOrderId =
+          this.positionState.tpOrderId;
+      }
+
+
+      this.log(
+        `TP SYNC #${syncNumber} | ` +
+        `REAL WEEX POSITION | ` +
+        `Size=${this.positionState.contracts} | ` +
+        `Average=${averageEntryPrice}`
+      );
+
+      this.log(
+        `TP SYNC #${syncNumber} | ` +
+        `Old TP=${oldTP ?? "NONE"} | ` +
+        `New TP=${newTP} | ` +
+        `SL=${this.positionState.currentSLPrice ?? "NONE"}`
+      );
+
+
+      // ========================================================
+      // EXISTING TP
+      // ========================================================
+
+      if (
+        this.positionState.tpOrderId
+      ) {
+        if (
+          typeof this.execution.modifyFullPositionTakeProfit !==
+          "function"
+        ) {
+          this.positionState.lastPositionSyncError =
+            "Execution layer does not have modifyFullPositionTakeProfit()";
+
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `REAL AVERAGE UPDATED | ` +
+            `TP MODIFY NOT AVAILABLE YET`
+          );
+
+          return;
+        }
+
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `Updating existing TP | ` +
+          `OrderID=${this.positionState.tpOrderId}`
+        );
+
+
+        const modifyResult =
+          await this.execution.modifyFullPositionTakeProfit({
+            orderId:
+              this.positionState.tpOrderId,
+
+            symbol:
+              this.symbol,
+
+            positionSide:
+              this.direction,
+
+            triggerPrice:
+              newTP,
+
+            triggerPriceType:
+              "MARK_PRICE",
+          });
+
+
+        if (
+          modifyResult?.success
+        ) {
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `TP UPDATED | ` +
+            `OrderID=${this.positionState.tpOrderId} | ` +
+            `New TP=${newTP}`
+          );
+
+        } else {
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `TP UPDATE FAILED | ` +
+            `OrderID=${this.positionState.tpOrderId}`
+          );
+        }
+
+
+      } else {
+
+        // ======================================================
+        // FALLBACK TP
+        // ======================================================
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `No existing TP Order ID`
+        );
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `Creating full-position TP fallback`
+        );
+
+
+        const tpResult =
+          await this.execution.placeFullPositionTakeProfit({
+            symbol:
+              this.symbol,
+
+            positionSide:
+              this.direction,
+
+            triggerPrice:
+              newTP,
+
+            triggerPriceType:
+              "MARK_PRICE",
+
+            clientAlgoId:
+              `adv-${this.id}-tp`,
+          });
+
+
+        if (
+          tpResult?.success
+        ) {
+          const newTPOrderId =
+            this.extractTPOrderId(
+              tpResult
+            );
+
+          this.positionState.tpOrderId =
+            newTPOrderId;
+
+          if (
+            this.position
+          ) {
+            this.position.tpOrderId =
+              newTPOrderId;
+          }
+
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `TP CREATED | ` +
+            `Price=${newTP} | ` +
+            `OrderID=${newTPOrderId ?? "UNKNOWN"}`
+          );
+
+        } else {
+          this.log(
+            `TP SYNC #${syncNumber} | ` +
+            `TP CREATE FAILED`
+          );
+        }
+      }
+
+    } catch (error) {
+      this.positionState.lastPositionSyncError =
+        error.message;
+
+      this.positionState.lastPositionSyncAt =
+        new Date().toISOString();
+
+      this.log(
+        `TP SYNC #${syncNumber} ERROR: ${error.message}`
+      );
+
+    } finally {
+      this.tpSyncInProgress =
+        false;
+    }
+  }
+
+
+  // ============================================================
+  // RECORD WINNING TRADE
+  // ============================================================
+
+  recordWinningTrade(exitPrice) {
+    const exit =
+      Number(exitPrice);
+
+    const entry =
+      Number(
+        this.positionState.entryPrice
+      );
+
+    if (
+      !Number.isFinite(exit) ||
+      exit <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0
+    ) {
+      return null;
+    }
+
+    let gap =
+      null;
+
+    if (
+      this.direction === "LONG"
+    ) {
+      gap =
+        exit - entry;
+
+    } else if (
+      this.direction === "SHORT"
+    ) {
+      gap =
+        entry - exit;
+    }
+
+    if (
+      !Number.isFinite(gap) ||
+      gap <= 0
+    ) {
+      return null;
+    }
+
+    const gapPercent =
+      (
+        gap /
+        entry
+      ) *
+      100;
+
+    this.positionState.winningGapPrice =
+      gap;
+
+    this.positionState.winningGapPercent =
+      gapPercent;
+
+    this.positionState.isWinner =
+      true;
+
+    this.positionState.lastExitPrice =
+      exit;
+
+    this.positionState.lastExitReason =
+      "WIN";
+
+    this.log(
+      `WINNING TRADE | ` +
+      `Entry=${entry} | ` +
+      `Exit=${exit} | ` +
+      `Gap=${gap} | ` +
+      `Gap=${gapPercent.toFixed(4)}%`
+    );
+
+    return {
+      gapPrice:
+        gap,
+
+      gapPercent:
+        gapPercent,
+    };
+  }
+
+
+  // ============================================================
+  // CALCULATE NEXT DYNAMIC SL
+  // ============================================================
+
+  calculateSLFromWinningGap(entryPrice) {
+    const entry =
+      Number(entryPrice);
+
+    const gap =
+      Number(
+        this.positionState.winningGapPrice
+      );
+
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      !Number.isFinite(gap) ||
+      gap <= 0
+    ) {
+      return null;
+    }
+
+    if (
+      this.direction === "LONG"
+    ) {
+      return (
+        entry - gap
+      );
+    }
+
+    if (
+      this.direction === "SHORT"
+    ) {
+      return (
+        entry + gap
+      );
+    }
+
+    return null;
+  }
+
+
+  // ============================================================
+  // UPDATE SL FROM WINNING GAP
+  // ============================================================
+
+  updateSLFromWinningGap(entryPrice) {
+    const newSL =
+      this.calculateSLFromWinningGap(
+        entryPrice
+      );
+
+    if (
+      !Number.isFinite(newSL) ||
+      newSL <= 0
+    ) {
+      return null;
+    }
+
+    this.positionState.currentSLPrice =
+      newSL;
+
+    if (
+      this.position
+    ) {
+      this.position.slPrice =
+        newSL;
+    }
+
+    this.log(
+      `NEW DYNAMIC SL | ` +
+      `Entry=${entryPrice} | ` +
+      `Gap=${this.positionState.winningGapPrice} | ` +
+      `New SL=${newSL}`
+    );
+
+    return newSL;
+  }
+
+
+  // ============================================================
+  // CLEAR POSITION STATE
+  // ============================================================
+
+  clearPositionState() {
+    if (
+      this.tpSyncTimer
+    ) {
+      clearTimeout(
+        this.tpSyncTimer
+      );
+
+      this.tpSyncTimer =
+        null;
+    }
+
+    this.tpSyncInProgress =
+      false;
+
+    this.positionState.side =
+      null;
+
+    this.positionState.entryPrice =
+      null;
+
+    this.positionState.averageEntryPrice =
+      null;
+
+    this.positionState.contracts =
+      0;
+
+    this.positionState.initialSLPrice =
+      null;
+
+    this.positionState.currentSLPrice =
+      null;
+
+    this.positionState.tpPrice =
+      null;
+
+    this.positionState.tpOrderId =
+      null;
+
+    this.positionState.winningGapPrice =
+      null;
+
+    this.positionState.winningGapPercent =
+      null;
+
+    this.positionState.tradeNumber =
+      0;
+
+    this.positionState.isWinner =
+      false;
+
+    this.positionState.lastExitPrice =
+      null;
+
+    this.positionState.lastExitReason =
+      null;
+
+    this.positionState.lastPositionSyncAt =
+      null;
+
+    this.positionState.lastPositionSyncError =
+      null;
+
+    this.positionEntries =
+      [];
+
+    this.position =
+      null;
+  }
+
+
+  // ============================================================
   // START
   // ============================================================
 
-  start() {
+  async start() {
     if (
       this.status === "RUNNING"
     ) {
@@ -412,6 +1644,48 @@ class AdvancedBot {
       `Max Entries: ${this.maxEntries}`
     );
 
+    this.log(
+      `Position Settings | margin=${this.marginUSDT} USDT | leverage=${this.leverage}x`
+    );
+
+    this.log(
+      `TP/SL Settings | ` +
+      `TP=${this.tpPercent}% | ` +
+      `Initial SL=${this.slPercent}% | ` +
+      `Dynamic SL=${this.dynamicSlPercent}%`
+    );
+
+    this.log(
+      `TP Position Sync Delay=${(
+        this.tpPositionSyncDelayMs /
+        1000
+      ).toFixed(1)}s`
+    );
+
+
+    // ==========================================================
+    // WEEX AUTH STATUS
+    // ==========================================================
+
+    this.log(
+      `WEEX Execution | ` +
+      `Authenticated=${this.execution.authEnabled ? "YES" : "NO"}`
+    );
+
+
+    // ==========================================================
+    // ORDER CALCULATION
+    // ==========================================================
+
+    try {
+      await this.calculateOrderSize();
+
+    } catch (error) {
+      this.log(
+        `Order calculation error: ${error.message}`
+      );
+    }
+
 
     // ==========================================================
     // KILL ZONE
@@ -422,11 +1696,6 @@ class AdvancedBot {
 
     // ==========================================================
     // TRIGGER LINE
-    //
-    // Only the ONE startup ticker request is used to establish
-    // the initial price reference.
-    //
-    // The configured Trigger Line price is NEVER replaced.
     // ==========================================================
 
     if (
@@ -436,15 +1705,16 @@ class AdvancedBot {
         "Trigger Line: ENABLED | Getting one startup market price..."
       );
 
-      this.initializeTriggerLineAtCurrentPrice();
+      await this.initializeTriggerLineAtCurrentPrice();
+
+      // IMPORTANT:
+      // Trigger monitor runs independently.
+      // It does NOT wait for the order-book scanner.
+      this.startTriggerLineMonitor();
 
       return;
     }
 
-
-    // ==========================================================
-    // NO TRIGGER LINE
-    // ==========================================================
 
     this.startCycleScanner();
   }
@@ -476,10 +1746,8 @@ class AdvancedBot {
       "Order-book scanner STARTED"
     );
 
-    // First scan immediately.
     this.processCycleScan();
 
-    // Continue scanning every minute.
     this.interval =
       setInterval(
         () => {
@@ -519,6 +1787,15 @@ class AdvancedBot {
       );
 
       this.triggerLineInterval =
+        null;
+    }
+
+    if (this.tpSyncTimer) {
+      clearTimeout(
+        this.tpSyncTimer
+      );
+
+      this.tpSyncTimer =
         null;
     }
 
@@ -566,6 +1843,15 @@ class AdvancedBot {
       );
 
       this.triggerLineInterval =
+        null;
+    }
+
+    if (this.tpSyncTimer) {
+      clearTimeout(
+        this.tpSyncTimer
+      );
+
+      this.tpSyncTimer =
         null;
     }
 
@@ -633,7 +1919,6 @@ class AdvancedBot {
     let data =
       ticker;
 
-    // WEEX bookTicker returns an array.
     if (
       Array.isArray(data)
     ) {
@@ -657,6 +1942,7 @@ class AdvancedBot {
       candidate =
         data.data[0] ||
         {};
+
     } else if (
       data.data &&
       typeof data.data === "object"
@@ -769,14 +2055,6 @@ class AdvancedBot {
 
   // ============================================================
   // INITIALIZE TRIGGER LINE
-  //
-  // IMPORTANT:
-  //
-  // This makes ONE WEEX price request.
-  //
-  // The returned price is ONLY the startup baseline.
-  //
-  // It does NOT replace triggerLine.price.
   // ============================================================
 
   async initializeTriggerLineAtCurrentPrice() {
@@ -796,10 +2074,6 @@ class AdvancedBot {
       true;
 
     try {
-      // --------------------------------------------------------
-      // ONE AND ONLY ONE STARTUP PRICE REQUEST
-      // --------------------------------------------------------
-
       const price =
         await this.getCurrentPrice();
 
@@ -811,15 +2085,6 @@ class AdvancedBot {
           "Current market price is not available"
         );
       }
-
-
-      // --------------------------------------------------------
-      // IMPORTANT:
-      //
-      // DO NOT CHANGE triggerLine.price HERE.
-      //
-      // It remains the configured Trigger Line.
-      // --------------------------------------------------------
 
       const triggerPrice =
         Number(
@@ -834,11 +2099,6 @@ class AdvancedBot {
           "Trigger Line price is not configured"
         );
       }
-
-
-      // --------------------------------------------------------
-      // SAVE ONLY THE STARTUP BASELINE
-      // --------------------------------------------------------
 
       this.triggerLine.initialized =
         true;
@@ -855,37 +2115,18 @@ class AdvancedBot {
       this.triggerLine.previousPrice =
         price;
 
-
-      // --------------------------------------------------------
-      // DETERMINE INITIAL SIDE
-      //
-      // This is only used to prevent an old/past touch from
-      // triggering immediately.
-      // --------------------------------------------------------
-
       if (
         this.direction === "LONG"
       ) {
-        // If starting above the line, a future downward touch
-        // can be considered fresh.
-        //
-        // If starting at/below the line, first require price
-        // to move above the line.
         this.triggerLine.waitingForReset =
           price <= triggerPrice;
 
       } else if (
         this.direction === "SHORT"
       ) {
-        // If starting below the line, a future upward touch
-        // can be considered fresh.
-        //
-        // If starting at/above the line, first require price
-        // to move below the line.
         this.triggerLine.waitingForReset =
           price >= triggerPrice;
       }
-
 
       this.log(
         `Trigger Line = ${triggerPrice}`
@@ -896,18 +2137,8 @@ class AdvancedBot {
       );
 
       this.log(
-        `Trigger Line READY | ${this.direction} | ` +
-        `Waiting for fresh touch`
+        `Trigger Line READY | ${this.direction} | Waiting for fresh touch`
       );
-
-      // --------------------------------------------------------
-      // IMPORTANT:
-      //
-      // No ticker interval is started here.
-      //
-      // We do not repeatedly request WEEX ticker data just to
-      // maintain the startup Trigger Line reference.
-      // --------------------------------------------------------
 
     } catch (error) {
       this.log(
@@ -922,11 +2153,7 @@ class AdvancedBot {
 
 
   // ============================================================
-  // CHECK TRIGGER LINE USING AN EXISTING MARKET PRICE
-  //
-  // This function does NOT request WEEX.
-  //
-  // The caller supplies a fresh market price.
+  // CHECK TRIGGER LINE
   // ============================================================
 
   checkTriggerLineWithPrice(
@@ -963,7 +2190,6 @@ class AdvancedBot {
       return;
     }
 
-
     const triggerPrice =
       Number(
         this.triggerLine.price
@@ -976,7 +2202,6 @@ class AdvancedBot {
       return;
     }
 
-
     const previousPrice =
       Number(
         this.triggerLine.previousPrice
@@ -985,6 +2210,8 @@ class AdvancedBot {
 
     // ==========================================================
     // LONG
+    //
+    // Need fresh cross DOWN.
     // ==========================================================
 
     if (
@@ -1006,14 +2233,12 @@ class AdvancedBot {
         return;
       }
 
-
       const touched =
         price <= triggerPrice &&
         (
           !Number.isFinite(previousPrice) ||
           previousPrice > triggerPrice
         );
-
 
       if (touched) {
         this.armTriggerLine(
@@ -1027,6 +2252,8 @@ class AdvancedBot {
 
     // ==========================================================
     // SHORT
+    //
+    // Need fresh cross UP.
     // ==========================================================
 
     if (
@@ -1048,14 +2275,12 @@ class AdvancedBot {
         return;
       }
 
-
       const touched =
         price >= triggerPrice &&
         (
           !Number.isFinite(previousPrice) ||
           previousPrice < triggerPrice
         );
-
 
       if (touched) {
         this.armTriggerLine(
@@ -1065,7 +2290,6 @@ class AdvancedBot {
         return;
       }
     }
-
 
     this.triggerLine.previousPrice =
       price;
@@ -1097,13 +2321,10 @@ class AdvancedBot {
     this.triggerLine.waitingForReset =
       false;
 
-
     this.log(
       `TRIGGER LINE ARMED | ${this.direction} | Price ${price}`
     );
 
-
-    // Trigger Line armed = start order-book scanning.
     this.startCycleScanner();
   }
 
@@ -1112,21 +2333,89 @@ class AdvancedBot {
   // TRIGGER LINE MONITOR
   //
   // IMPORTANT:
+  // Independent from order-book cycle.
   //
-  // No WEEX ticker request here.
-  //
-  // Trigger Line is checked when an existing market/order-book
-  // operation provides a fresh price.
+  // Default:
+  // 1 ticker check per second.
   // ============================================================
 
   startTriggerLineMonitor() {
-    // Intentionally no polling timer.
-    //
-    // The Trigger Line startup price is requested exactly once.
-    //
-    // Future Trigger Line checks are performed through
-    // processCycleScan()/scan() price updates once available.
-    return;
+    if (
+      !this.triggerLine.enabled
+    ) {
+      return;
+    }
+
+    if (
+      this.triggerLineInterval
+    ) {
+      clearInterval(
+        this.triggerLineInterval
+      );
+
+      this.triggerLineInterval =
+        null;
+    }
+
+    const intervalMs =
+      this.triggerLineCheckIntervalMs;
+
+    this.log(
+      `Trigger Line Monitor STARTED | ` +
+      `Interval=${intervalMs}ms`
+    );
+
+    this.triggerLineInterval =
+      setInterval(
+        async () => {
+
+          if (
+            this.status !== "RUNNING"
+          ) {
+            return;
+          }
+
+          if (
+            !this.triggerLine.enabled
+          ) {
+            return;
+          }
+
+          if (
+            !this.triggerLine.initialized
+          ) {
+            return;
+          }
+
+          if (
+            this.triggerLine.armed
+          ) {
+            return;
+          }
+
+          try {
+            const price =
+              await this.getCurrentPrice();
+
+            if (
+              !Number.isFinite(price) ||
+              price <= 0
+            ) {
+              return;
+            }
+
+            this.checkTriggerLineWithPrice(
+              price
+            );
+
+          } catch (error) {
+            this.log(
+              `Trigger Line Monitor error: ${error.message}`
+            );
+          }
+        },
+        intervalMs
+      );
   }
 
 
@@ -1141,9 +2430,6 @@ class AdvancedBot {
       return null;
     }
 
-
-    // Trigger Line enabled but not armed:
-    // no order-book scan.
     if (
       this.triggerLine.enabled &&
       !this.triggerLine.armed
@@ -1151,19 +2437,11 @@ class AdvancedBot {
       return null;
     }
 
-
     const snapshot =
       await getOrderBook(
         this.symbol,
         200
       );
-
-
-    // ----------------------------------------------------------
-    // Use the fresh order-book price if available.
-    //
-    // This is NOT used to initialize the Trigger Line.
-    // ----------------------------------------------------------
 
     let marketPrice =
       null;
@@ -1198,12 +2476,14 @@ class AdvancedBot {
         ) {
           marketPrice =
             (bid + ask) / 2;
+
         } else if (
           Number.isFinite(bid) &&
           bid > 0
         ) {
           marketPrice =
             bid;
+
         } else if (
           Number.isFinite(ask) &&
           ask > 0
@@ -1217,7 +2497,6 @@ class AdvancedBot {
         null;
     }
 
-
     if (
       Number.isFinite(marketPrice)
     ) {
@@ -1229,18 +2508,15 @@ class AdvancedBot {
       );
     }
 
-
     const analysis =
       this.orderBook.analyze(
         snapshot
       );
 
-
     const normalizedDecision =
       this.normalizeDecision(
         analysis.decision
       );
-
 
     this.lastScanAt =
       new Date().toISOString();
@@ -1248,14 +2524,12 @@ class AdvancedBot {
     this.lastDecision =
       normalizedDecision;
 
-
     this.lastAnalysis = {
       ...analysis,
 
       decision:
         normalizedDecision,
     };
-
 
     return {
       snapshot,
@@ -1297,7 +2571,6 @@ class AdvancedBot {
       return;
     }
 
-
     if (
       this.triggerLine.enabled &&
       !this.triggerLine.armed
@@ -1305,20 +2578,16 @@ class AdvancedBot {
       return;
     }
 
-
     try {
       const result =
         await this.scan();
-
 
       if (!result) {
         return;
       }
 
-
       const analysis =
         result.analysis;
-
 
       const rawDecision =
         String(
@@ -1327,25 +2596,22 @@ class AdvancedBot {
           .trim()
           .toUpperCase();
 
-
       const isValidTrigger =
         analysis.trigger === true &&
         rawDecision === this.direction;
-
 
       const minuteDecision =
         isValidTrigger
           ? this.direction
           : "NEUTRAL";
 
-
       if (isValidTrigger) {
-        this.cycleTriggerCount += 1;
+        this.cycleTriggerCount +=
+          1;
       }
 
-
-      this.cycleScans += 1;
-
+      this.cycleScans +=
+        1;
 
       const historyRow = {
         number:
@@ -1389,11 +2655,9 @@ class AdvancedBot {
           "NO_REASON",
       };
 
-
       this.cycleDecisionHistory.push(
         historyRow
       );
-
 
       if (
         this.cycleTriggerCount > 0
@@ -1405,10 +2669,8 @@ class AdvancedBot {
           "NEUTRAL";
       }
 
-
       this.lastDecision =
         minuteDecision;
-
 
       this.log(
         `Cycle ${this.cycleNumber} | ` +
@@ -1417,7 +2679,6 @@ class AdvancedBot {
         `Decision ${minuteDecision} | ` +
         `Triggers ${this.cycleTriggerCount}/${this.cycleTriggerMinutes}`
       );
-
 
       if (
         this.cycleScans >=
@@ -1445,10 +2706,8 @@ class AdvancedBot {
         ? this.direction
         : "NEUTRAL";
 
-
     const latestAnalysis =
       this.lastAnalysis || {};
-
 
     const completedCycle = {
       cycleNumber:
@@ -1483,11 +2742,9 @@ class AdvancedBot {
           : "TRIGGER_MINUTES_NOT_REACHED",
     };
 
-
     this.completedCycleHistory.push(
       completedCycle
     );
-
 
     if (
       this.completedCycleHistory.length >
@@ -1496,20 +2753,17 @@ class AdvancedBot {
       this.completedCycleHistory.shift();
     }
 
-
     this.cycleDecision =
       finalDecision;
 
     this.lastDecision =
       finalDecision;
 
-
     this.log(
       `CYCLE ${this.cycleNumber} COMPLETE | ` +
       `Triggers ${this.cycleTriggerCount}/${this.cycleTriggerMinutes} | ` +
       `FINAL ${finalDecision}`
     );
-
 
     if (
       finalDecision ===
@@ -1520,15 +2774,15 @@ class AdvancedBot {
       );
     }
 
-
-    this.cycleNumber += 1;
+    this.cycleNumber +=
+      1;
 
     this.startNewCycle();
   }
 
 
   // ============================================================
-  // ENTRY SIGNAL
+  // EXECUTE ENTRY SIGNAL
   // ============================================================
 
   async executeEntrySignal(
@@ -1540,21 +2794,158 @@ class AdvancedBot {
       return;
     }
 
+    const normalizedDecision =
+      this.normalizeDecision(
+        decision
+      );
 
     if (
-      decision !==
+      normalizedDecision !==
       this.direction
     ) {
       return;
     }
 
 
+    // ==========================================================
+    // MAX PYRAMID ENTRIES
+    // ==========================================================
+
     if (
       this.entryCount >=
       this.maxEntries
     ) {
       this.log(
-        `Entry blocked | Max entries reached ${this.maxEntries}/${this.maxEntries}`
+        `ENTRY BLOCKED | ` +
+        `Maximum entries reached | ` +
+        `${this.entryCount}/${this.maxEntries}`
+      );
+
+      return;
+    }
+
+
+    const nextEntryNumber =
+      this.entryCount + 1;
+
+
+    this.log(
+      `ENTRY SIGNAL | ` +
+      `${this.direction} | ` +
+      `Entry #${nextEntryNumber}/${this.maxEntries}`
+    );
+
+
+    // ==========================================================
+    // LIVE WEEX POSITION GUARD
+    // ==========================================================
+
+    try {
+      const livePosition =
+        await this.execution.getPosition({
+          symbol:
+            this.symbol,
+
+          positionSide:
+            this.direction,
+        });
+
+
+      if (
+        !livePosition ||
+        livePosition.connected !== true
+      ) {
+        this.log(
+          `ENTRY #${nextEntryNumber} BLOCKED | ` +
+          `WEEX position data unavailable`
+        );
+
+        return;
+      }
+
+
+      if (
+        livePosition.authenticated === false
+      ) {
+        this.log(
+          `ENTRY #${nextEntryNumber} BLOCKED | ` +
+          `WEEX authentication failed`
+        );
+
+        return;
+      }
+
+
+      const liveSize =
+        Number(
+          livePosition.size ?? 0
+        );
+
+
+      if (
+        nextEntryNumber === 1
+      ) {
+        if (
+          livePosition.hasPosition === true ||
+          (
+            Number.isFinite(liveSize) &&
+            liveSize > 0
+          )
+        ) {
+          this.log(
+            `ENTRY #1 BLOCKED | ` +
+            `WEEX already has an open ${this.direction} position | ` +
+            `Size=${liveSize}`
+          );
+
+          return;
+        }
+
+      } else {
+        if (
+          livePosition.hasPosition !== true ||
+          !Number.isFinite(liveSize) ||
+          liveSize <= 0
+        ) {
+          this.log(
+            `PYRAMID #${nextEntryNumber} BLOCKED | ` +
+            `WEEX position does not exist`
+          );
+
+          return;
+        }
+
+        this.log(
+          `PYRAMID #${nextEntryNumber} | ` +
+          `Existing WEEX position confirmed | ` +
+          `Size=${liveSize}`
+        );
+      }
+
+    } catch (error) {
+      this.log(
+        `ENTRY #${nextEntryNumber} BLOCKED | ` +
+        `WEEX position check failed: ${error.message}`
+      );
+
+      return;
+    }
+
+
+    // ==========================================================
+    // CALCULATE ORDER SIZE
+    // ==========================================================
+
+    let order;
+
+    try {
+      order =
+        await this.calculateOrderSize();
+
+    } catch (error) {
+      this.log(
+        `ENTRY #${nextEntryNumber} BLOCKED | ` +
+        `Order calculation failed: ${error.message}`
       );
 
       return;
@@ -1562,63 +2953,365 @@ class AdvancedBot {
 
 
     if (
-      this.killZone.enabled
+      !order ||
+      !Number.isFinite(
+        Number(order.contracts)
+      ) ||
+      Number(order.contracts) <= 0
     ) {
-      const killZoneHit =
-        await this.checkPriceKillZone();
+      this.log(
+        `ENTRY #${nextEntryNumber} BLOCKED | ` +
+        `Invalid order size`
+      );
 
-      if (killZoneHit) {
-        return;
-      }
+      return;
     }
 
 
+    // ==========================================================
+    // GET CURRENT MARKET PRICE
+    // ==========================================================
+
+    const entryPrice =
+      await this.getCurrentPrice();
+
+
+    if (
+      !Number.isFinite(entryPrice) ||
+      entryPrice <= 0
+    ) {
+      this.log(
+        `ENTRY #${nextEntryNumber} BLOCKED | ` +
+        `Current market price unavailable`
+      );
+
+      return;
+    }
+
+
+    // ==========================================================
+    // OPEN POSITION
+    // ==========================================================
+
+    let openResult;
+
     try {
-      const result =
-        await openPosition({
+      this.log(
+        `ENTRY #${nextEntryNumber} | ` +
+        `Opening ${this.direction} | ` +
+        `Contracts=${order.contracts} | ` +
+        `Price=${entryPrice}`
+      );
+
+
+      openResult =
+        await this.execution.openPosition({
           symbol:
             this.symbol,
 
           direction:
             this.direction,
+
+          contracts:
+            order.contracts,
+
+          marginUSDT:
+            this.marginUSDT,
+
+          leverage:
+            this.leverage,
+
+          actualNotional:
+            order.actualNotional,
+
+          estimatedMargin:
+            order.estimatedMargin,
         });
 
 
-      this.entryCount += 1;
-
-
-      const entrySignal = {
-        number:
-          this.entryCount,
-
-        time:
-          new Date().toISOString(),
-
-        symbol:
-          this.symbol,
-
-        direction:
-          this.direction,
-
-        result,
-      };
-
-
-      this.entrySignals.push(
-        entrySignal
-      );
-
-
-      this.log(
-        `ENTRY ${this.entryCount}/${this.maxEntries} | ` +
-        `${this.direction} | ` +
-        `${result?.simulated ? "SIMULATED" : "EXECUTED"}`
-      );
-
     } catch (error) {
       this.log(
-        `Entry error: ${error.message}`
+        `ENTRY #${nextEntryNumber} FAILED | ` +
+        `Open position error: ${error.message}`
       );
+
+      return;
+    }
+
+
+    // ==========================================================
+    // OPEN RESULT CHECK
+    // ==========================================================
+
+    if (
+      openResult?.success === false
+    ) {
+      this.log(
+        `ENTRY #${nextEntryNumber} FAILED | ` +
+        `WEEX open rejected`
+      );
+
+      return;
+    }
+
+
+    // ==========================================================
+    // ENTRY COUNT
+    // ==========================================================
+
+    this.entryCount =
+      nextEntryNumber;
+
+
+    // ==========================================================
+    // RECORD LOCAL POSITION ENTRY
+    // ==========================================================
+
+    this.recordPositionEntry({
+      entryPrice:
+        entryPrice,
+
+      contracts:
+        order.contracts,
+
+      result:
+        openResult,
+    });
+
+
+    this.entrySignals.push({
+      time:
+        new Date().toISOString(),
+
+      symbol:
+        this.symbol,
+
+      direction:
+        this.direction,
+
+      entryNumber:
+        this.entryCount,
+
+      price:
+        entryPrice,
+
+      contracts:
+        order.contracts,
+
+      decision:
+        normalizedDecision,
+    });
+
+
+    if (
+      this.entrySignals.length >
+      100
+    ) {
+      this.entrySignals.shift();
+    }
+
+
+    this.log(
+      `ENTRY #${this.entryCount} RECORDED | ` +
+      `${this.direction} | ` +
+      `Price=${entryPrice} | ` +
+      `Contracts=${order.contracts}`
+    );
+
+
+    // ==========================================================
+    // ENTRY #1
+    // ==========================================================
+
+    if (
+      this.entryCount === 1
+    ) {
+      this.log(
+        `ENTRY #1 | ` +
+        `Initial SL calculated at ` +
+        `${this.positionState.currentSLPrice ?? "NONE"}`
+      );
+
+      this.log(
+        `ENTRY #1 | ` +
+        `Initial TP=${this.positionState.tpPrice ?? "NONE"}`
+      );
+
+
+      // ========================================================
+      // FULL-POSITION STOP LOSS
+      // ========================================================
+
+      if (
+        Number.isFinite(
+          this.positionState.currentSLPrice
+        ) &&
+        this.positionState.currentSLPrice > 0
+      ) {
+        if (
+          typeof this.execution.placeFullPositionStopLoss !==
+          "function"
+        ) {
+          this.log(
+            `ENTRY #1 | SL NOT PLACED | ` +
+            `Execution layer does not have placeFullPositionStopLoss()`
+          );
+
+        } else {
+          this.log(
+            `ENTRY #1 | ` +
+            `Placing FULL-POSITION SL on WEEX | ` +
+            `SL=${this.positionState.currentSLPrice}`
+          );
+
+          try {
+            const slResult =
+              await this.execution.placeFullPositionStopLoss({
+                symbol:
+                  this.symbol,
+
+                positionSide:
+                  this.direction,
+
+                triggerPrice:
+                  this.positionState.currentSLPrice,
+
+                triggerPriceType:
+                  "MARK_PRICE",
+
+                clientAlgoId:
+                  `adv-${this.id}-sl`,
+              });
+
+
+            if (
+              slResult?.success
+            ) {
+              this.log(
+                `ENTRY #1 | ` +
+                `FULL-POSITION SL CREATED | ` +
+                `SL=${this.positionState.currentSLPrice}`
+              );
+
+            } else {
+              this.log(
+                `ENTRY #1 | ` +
+                `FULL-POSITION SL CREATE FAILED`
+              );
+            }
+
+          } catch (error) {
+            this.log(
+              `ENTRY #1 | ` +
+              `FULL-POSITION SL ERROR: ${error.message}`
+            );
+          }
+        }
+
+      } else {
+        this.log(
+          `ENTRY #1 | ` +
+          `SL NOT CREATED | Invalid SL price`
+        );
+      }
+
+
+      // ========================================================
+      // FULL-POSITION TAKE PROFIT
+      // ========================================================
+
+      if (
+        Number.isFinite(
+          this.positionState.tpPrice
+        ) &&
+        this.positionState.tpPrice > 0
+      ) {
+        this.log(
+          `ENTRY #1 | ` +
+          `Placing FULL-POSITION TP on WEEX | ` +
+          `TP=${this.positionState.tpPrice}`
+        );
+
+        try {
+          const tpResult =
+            await this.execution.placeFullPositionTakeProfit({
+              symbol:
+                this.symbol,
+
+              positionSide:
+                this.direction,
+
+              triggerPrice:
+                this.positionState.tpPrice,
+
+              triggerPriceType:
+                "MARK_PRICE",
+
+              clientAlgoId:
+                `adv-${this.id}-tp`,
+            });
+
+
+          if (
+            tpResult?.success
+          ) {
+            const tpOrderId =
+              this.extractTPOrderId(
+                tpResult
+              );
+
+            this.positionState.tpOrderId =
+              tpOrderId;
+
+            if (
+              this.position
+            ) {
+              this.position.tpOrderId =
+                tpOrderId;
+            }
+
+            this.log(
+              `ENTRY #1 | ` +
+              `FULL-POSITION TP CREATED | ` +
+              `TP=${this.positionState.tpPrice} | ` +
+              `TP Order ID=${tpOrderId ?? "UNKNOWN"}`
+            );
+
+          } else {
+            this.log(
+              `ENTRY #1 | ` +
+              `FULL-POSITION TP CREATE FAILED`
+            );
+          }
+
+        } catch (error) {
+          this.log(
+            `ENTRY #1 | ` +
+            `FULL-POSITION TP ERROR: ${error.message}`
+          );
+        }
+
+      } else {
+        this.log(
+          `ENTRY #1 | ` +
+          `TP NOT CREATED | Invalid TP price`
+        );
+      }
+
+
+    // ==========================================================
+    // PYRAMID #2 / #3
+    // ==========================================================
+
+    } else {
+      this.log(
+        `PYRAMID #${this.entryCount} | ` +
+        `NO NEW SL | ` +
+        `Existing SL=${this.positionState.currentSLPrice ?? "NONE"} | ` +
+        `TP Order=${this.positionState.tpOrderId ?? "NONE"}`
+      );
+
+      this.scheduleTPPositionSync();
     }
   }
 
@@ -1634,7 +3327,6 @@ class AdvancedBot {
       return false;
     }
 
-
     const hasLow =
       Number.isFinite(
         this.killZone.low
@@ -1645,7 +3337,6 @@ class AdvancedBot {
         this.killZone.high
       );
 
-
     if (
       !hasLow &&
       !hasHigh
@@ -1653,19 +3344,16 @@ class AdvancedBot {
       return false;
     }
 
-
     try {
       const ticker =
         await getTicker(
           this.symbol
         );
 
-
       const price =
         this.getTickerPrice(
           ticker
         );
-
 
       if (
         !Number.isFinite(price)
@@ -1673,14 +3361,11 @@ class AdvancedBot {
         return false;
       }
 
-
       this.lastPrice =
         price;
 
-
       let hit =
         false;
-
 
       if (
         hasLow &&
@@ -1698,24 +3383,20 @@ class AdvancedBot {
             this.killZone.high
           );
 
-
         hit =
           price >= low &&
           price <= high;
 
       } else if (hasLow) {
-
         hit =
           price <=
           this.killZone.low;
 
       } else if (hasHigh) {
-
         hit =
           price >=
           this.killZone.high;
       }
-
 
       if (hit) {
         this.kill(
@@ -1724,7 +3405,6 @@ class AdvancedBot {
 
         return true;
       }
-
 
       return false;
 
@@ -1749,18 +3429,15 @@ class AdvancedBot {
       return;
     }
 
-
     if (this.killZoneInterval) {
       clearInterval(
         this.killZoneInterval
       );
     }
 
-
     this.killZoneInterval =
       setInterval(
         async () => {
-
           if (
             this.status !== "RUNNING"
           ) {
@@ -1768,13 +3445,10 @@ class AdvancedBot {
           }
 
           await this.checkPriceKillZone();
-
         },
         this.killZoneCheckIntervalMs
       );
 
-
-    // Initial check.
     this.checkPriceKillZone();
   }
 
@@ -1805,6 +3479,20 @@ class AdvancedBot {
 
 
       // ========================================================
+      // POSITION SETTINGS
+      // ========================================================
+
+      marginUSDT:
+        this.marginUSDT,
+
+      leverage:
+        this.leverage,
+
+      orderCalculation:
+        this.orderCalculation,
+
+
+      // ========================================================
       // CYCLE
       // ========================================================
 
@@ -1823,9 +3511,10 @@ class AdvancedBot {
         {
           ...this.orderBookConfig,
 
-          entryDepths: [
-            ...this.orderBookConfig.entryDepths,
-          ],
+          entryDepths:
+            [
+              ...this.orderBookConfig.entryDepths,
+            ],
         },
 
 
@@ -1890,6 +3579,9 @@ class AdvancedBot {
       entrySignals:
         this.entrySignals,
 
+      positionEntries:
+        this.positionEntries,
+
 
       // ========================================================
       // POSITION
@@ -1897,6 +3589,11 @@ class AdvancedBot {
 
       position:
         this.position,
+
+      positionState:
+        {
+          ...this.positionState,
+        },
 
 
       // ========================================================
@@ -1908,6 +3605,22 @@ class AdvancedBot {
 
       slPercent:
         this.slPercent,
+
+      dynamicSlPercent:
+        this.dynamicSlPercent,
+
+      tpPositionSyncDelayMs:
+        this.tpPositionSyncDelayMs,
+
+      tpPositionSyncDelaySeconds:
+        this.tpPositionSyncDelayMs /
+        1000,
+
+      tpSyncInProgress:
+        this.tpSyncInProgress,
+
+      tpSyncNumber:
+        this.tpSyncNumber,
 
 
       // ========================================================
@@ -1927,6 +3640,9 @@ class AdvancedBot {
       triggerLine:
         {
           ...this.triggerLine,
+
+          checkIntervalMs:
+            this.triggerLineCheckIntervalMs,
         },
 
 
@@ -1963,7 +3679,9 @@ class AdvancedBot {
       // ========================================================
 
       logs:
-        [...this.logs],
+        [
+          ...this.logs,
+        ],
     };
   }
 }

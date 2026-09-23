@@ -202,6 +202,23 @@ class BotManager {
         "ORDERBOOK",
 
       // --------------------------------------------------------
+      // POSITION SETTINGS
+      // --------------------------------------------------------
+
+      // Default margin per position.
+      // Easy to change later.
+      marginUSDT:
+        Number(
+          config.marginUSDT ?? 0.5
+        ),
+
+      // Default leverage.
+      leverage:
+        Number(
+          config.leverage ?? 10
+        ),
+
+      // --------------------------------------------------------
       // ORDER BOOK
       // --------------------------------------------------------
 
@@ -326,14 +343,6 @@ class BotManager {
       // --------------------------------------------------------
       // PRICE TRIGGER LINE
       // --------------------------------------------------------
-      // The trigger price supplied by the frontend is preserved
-      // here, but AdvancedBot will replace it with the current
-      // market price when the bot starts.
-      //
-      // Trigger Line meaning:
-      // LONG  -> start looking after fresh downward crossing
-      // SHORT -> start looking after fresh upward crossing
-      // --------------------------------------------------------
 
       triggerLineEnabled:
         Boolean(
@@ -353,6 +362,10 @@ class BotManager {
               config.triggerLinePrice
             ),
     };
+
+    console.log(
+      `[BotManager] Advanced Bot Position | margin=${botData.marginUSDT} USDT | leverage=${botData.leverage}x`
+    );
 
     console.log(
       `[BotManager] Advanced Bot Trigger Line | enabled=${botData.triggerLineEnabled} | price=${botData.triggerLinePrice}`
@@ -545,17 +558,9 @@ class BotManager {
       ...state,
     };
 
-    // Runtime-only values should
-    // never be persisted as active
-    // timers/runtime handles.
-
     delete persistent.timer;
     delete persistent.interval;
     delete persistent.scanTimer;
-
-    // A bot must not automatically
-    // restart simply because it was
-    // saved while RUNNING.
 
     if (
       persistent.status ===
@@ -564,10 +569,6 @@ class BotManager {
       persistent.status =
         "STOPPED";
     }
-
-    // Runtime analysis is useful
-    // for the dashboard but should
-    // not become configuration.
 
     return persistent;
   }
@@ -593,4 +594,3 @@ class BotManager {
 
 module.exports =
   BotManager;
-

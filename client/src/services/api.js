@@ -118,6 +118,66 @@ export async function getOrderBook(
 }
 
 // ============================================================
+// WEEX POSITION
+// ============================================================
+
+export async function getWeexPosition(
+  symbol,
+  positionSide = "LONG"
+) {
+  const params =
+    new URLSearchParams({
+      symbol:
+        String(
+          symbol || ""
+        ).toUpperCase(),
+
+      positionSide:
+        String(
+          positionSide || "LONG"
+        ).toUpperCase(),
+    });
+
+  return request(
+    `/weex/position-test?${params.toString()}`
+  );
+}
+
+// ============================================================
+// GLOBAL SETTINGS
+// ============================================================
+
+export async function getSettings() {
+  return request(
+    "/settings"
+  );
+}
+
+export async function saveSettings(
+  settings
+) {
+  return request(
+    "/settings",
+    {
+      method: "PUT",
+
+      body:
+        JSON.stringify({
+          marginUSDT:
+            Number(
+              settings.marginUSDT
+            ),
+
+          leverage:
+            Number(
+              settings.leverage
+            ),
+        }),
+    }
+  );
+}
+
+// ============================================================
 // BOTS
 // ============================================================
 
@@ -453,6 +513,11 @@ export default {
   getKlines,
   getOrderBook,
 
+  getWeexPosition,
+
+  getSettings,
+  saveSettings,
+
   getBots,
 
   createBot,
@@ -463,4 +528,3 @@ export default {
   scanBot,
   removeBot,
 };
-

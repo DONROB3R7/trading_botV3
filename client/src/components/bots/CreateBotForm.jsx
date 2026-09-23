@@ -4,6 +4,7 @@ import {
   createBot,
   createAdvancedBot,
   getSymbols,
+  getWeexPosition,
 } from "../../services/api";
 
 function CreateBotForm({ onCreated }) {
@@ -21,6 +22,22 @@ function CreateBotForm({ onCreated }) {
 
   const [error, setError] =
     useState("");
+
+  // ============================================================
+  // WEEX POSITION TEST
+  // ============================================================
+
+  const [positionTestLoading, setPositionTestLoading] =
+    useState(false);
+
+  const [positionTest, setPositionTest] =
+    useState(null);
+
+  const [positionTestError, setPositionTestError] =
+    useState("");
+
+  const [positionTestSide, setPositionTestSide] =
+    useState("LONG");
 
   // ============================================================
   // SIMPLE BOT
@@ -239,6 +256,48 @@ function CreateBotForm({ onCreated }) {
   }
 
   // ============================================================
+  // WEEX POSITION TEST
+  // ============================================================
+
+  async function handlePositionTest() {
+    try {
+      setPositionTestLoading(true);
+
+      setPositionTestError("");
+
+      setPositionTest(null);
+
+      const response =
+        await getWeexPosition(
+          advanced.symbol,
+          positionTestSide
+        );
+
+      const result =
+        response?.result ??
+        response;
+
+      setPositionTest(
+        result
+      );
+
+    } catch (err) {
+      console.error(
+        "[CreateBotForm] WEEX Position Test error:",
+        err
+      );
+
+      setPositionTestError(
+        err.message ||
+          "Failed to read WEEX position"
+      );
+
+    } finally {
+      setPositionTestLoading(false);
+    }
+  }
+
+  // ============================================================
   // CREATE BOT
   // ============================================================
 
@@ -429,11 +488,6 @@ function CreateBotForm({ onCreated }) {
 
       // ========================================================
       // DEBUG
-      // ========================================================
-      //
-      // IMPORTANT:
-      // This proves exactly what is being sent.
-      //
       // ========================================================
 
       console.log(
@@ -765,6 +819,186 @@ function CreateBotForm({ onCreated }) {
               </option>
             </select>
           </div>
+
+          {/* ------------------------------------------------
+              WEEX POSITION TEST
+          ------------------------------------------------- */}
+
+          <h4>
+            WEEX Position Test
+          </h4>
+
+          <div>
+            <label>
+              Symbol
+            </label>
+
+            <input
+              value={
+                advanced.symbol
+              }
+              disabled
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label>
+              Position Side
+            </label>
+
+            <select
+              value={
+                positionTestSide
+              }
+              onChange={(
+                event
+              ) => {
+                setPositionTestSide(
+                  event.target.value
+                );
+
+                setPositionTest(
+                  null
+                );
+
+                setPositionTestError(
+                  ""
+                );
+              }}
+            >
+              <option value="LONG">
+                LONG
+              </option>
+
+              <option value="SHORT">
+                SHORT
+              </option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={
+              handlePositionTest
+            }
+            disabled={
+              positionTestLoading ||
+              loadingSymbols ||
+              !advanced.symbol
+            }
+          >
+            {positionTestLoading
+              ? "Checking WEEX..."
+              : "Check WEEX Position"}
+          </button>
+
+          {positionTestError && (
+            <div
+              style={{
+                padding:
+                  "10px",
+
+                border:
+                  "1px solid #ef4444",
+
+                borderRadius:
+                  "6px",
+              }}
+            >
+              {positionTestError}
+            </div>
+          )}
+
+          {positionTest && (
+            <div
+              style={{
+                padding:
+                  "12px",
+
+                border:
+                  "1px solid #2563eb",
+
+                borderRadius:
+                  "6px",
+
+                display:
+                  "flex",
+
+                flexDirection:
+                  "column",
+
+                gap: 6,
+              }}
+            >
+              <strong>
+                WEEX Position Result
+              </strong>
+
+              <div>
+                Connected:{" "}
+                {positionTest.connected
+                  ? "YES"
+                  : "NO"}
+              </div>
+
+              <div>
+                Authenticated:{" "}
+                {positionTest.authenticated
+                  ? "YES"
+                  : "NO"}
+              </div>
+
+              <div>
+                Simulated:{" "}
+                {positionTest.simulated
+                  ? "YES"
+                  : "NO"}
+              </div>
+
+              <div>
+                Symbol:{" "}
+                {positionTest.symbol ||
+                  advanced.symbol}
+              </div>
+
+              <div>
+                Side:{" "}
+                {positionTest.positionSide ||
+                  positionTestSide}
+              </div>
+
+              <div>
+                Has Position:{" "}
+                {positionTest.hasPosition
+                  ? "YES"
+                  : "NO"}
+              </div>
+
+              <div>
+                Size:{" "}
+                {positionTest.size ?? 0}
+              </div>
+
+              <div>
+                Open Value:{" "}
+                {positionTest.openValue ?? 0}
+              </div>
+
+              <div>
+                Average Entry Price:{" "}
+                {positionTest.averageEntryPrice ??
+                  "—"}
+              </div>
+
+              {positionTest.lastPositionSyncError && (
+                <div>
+                  Sync Error:{" "}
+                  {positionTest.lastPositionSyncError}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ------------------------------------------------
               ORDER BOOK

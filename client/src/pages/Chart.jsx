@@ -27,9 +27,7 @@ const REFRESH_MS = 5000;
 // ============================================================
 
 function formatBerlinTime(value) {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
 
   const date =
     value instanceof Date
@@ -40,21 +38,16 @@ function formatBerlinTime(value) {
     return "-";
   }
 
-  return date.toLocaleTimeString(
-    "de-DE",
-    {
-      timeZone: BERLIN_TIME_ZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }
-  );
+  return date.toLocaleTimeString("de-DE", {
+    timeZone: BERLIN_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function formatBerlinDateTime(value) {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
 
   const date =
     value instanceof Date
@@ -65,111 +58,56 @@ function formatBerlinDateTime(value) {
     return "-";
   }
 
-  return date.toLocaleString(
-    "de-DE",
-    {
-      timeZone: BERLIN_TIME_ZONE,
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }
-  );
+  return date.toLocaleString("de-DE", {
+    timeZone: BERLIN_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function normalizeDirection(value) {
-  const direction =
-    String(value || "")
-      .trim()
-      .toUpperCase();
+  const direction = String(value || "")
+    .trim()
+    .toUpperCase();
 
-  if (direction === "LONG") {
-    return "LONG";
-  }
-
-  if (direction === "SHORT") {
-    return "SHORT";
-  }
+  if (direction === "LONG") return "LONG";
+  if (direction === "SHORT") return "SHORT";
 
   return "NEUTRAL";
 }
 
-function directionClass(direction) {
-  const normalized =
-    normalizeDirection(direction);
+function directionClass(value) {
+  const direction =
+    normalizeDirection(value);
 
-  if (normalized === "LONG") {
-    return "long";
-  }
-
-  if (normalized === "SHORT") {
-    return "short";
-  }
+  if (direction === "LONG") return "long";
+  if (direction === "SHORT") return "short";
 
   return "neutral";
 }
 
-function getTrendDirection(trend) {
-  if (typeof trend === "string") {
-    return normalizeDirection(trend);
+function formatNumber(value, decimals = 5) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "-";
   }
 
-  return normalizeDirection(
-    trend?.direction
-  );
+  return number.toFixed(decimals);
 }
 
-function getRawTrendDirection(trend) {
-  if (typeof trend === "string") {
-    return normalizeDirection(trend);
+function formatPercent(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "-";
   }
 
-  return normalizeDirection(
-    trend?.rawDirection ??
-      trend?.direction
-  );
-}
-
-function percentageForDepth(depth) {
-  const direction =
-    normalizeDirection(
-      depth?.direction
-    );
-
-  if (direction === "LONG") {
-    return Number(
-      depth?.bidPercentage ?? 0
-    );
-  }
-
-  if (direction === "SHORT") {
-    return Number(
-      depth?.askPercentage ?? 0
-    );
-  }
-
-  return 0;
-}
-
-function percentageForTrend(trend) {
-  const direction =
-    getTrendDirection(trend);
-
-  if (direction === "LONG") {
-    return Number(
-      trend?.bidPercentage ?? 0
-    );
-  }
-
-  if (direction === "SHORT") {
-    return Number(
-      trend?.askPercentage ?? 0
-    );
-  }
-
-  return 0;
+  return `${number.toFixed(2)}%`;
 }
 
 function normalizeKline(candle) {
@@ -309,8 +247,7 @@ function findNearestCandleTime(
   const target =
     Math.floor(timestampMs / 1000);
 
-  let closest =
-    candles[0].time;
+  let closest = candles[0].time;
 
   let closestDistance =
     Math.abs(
@@ -328,14 +265,10 @@ function findNearestCandleTime(
       );
 
     if (
-      distance <
-      closestDistance
+      distance < closestDistance
     ) {
-      closest =
-        candles[i].time;
-
-      closestDistance =
-        distance;
+      closest = candles[i].time;
+      closestDistance = distance;
     }
   }
 
@@ -343,7 +276,41 @@ function findNearestCandleTime(
 }
 
 // ============================================================
-// CHART
+// GENERIC VALUE HELPERS
+//
+// AdvancedBot has changed during development. These helpers
+// intentionally support several possible state names so the
+// chart does not break while the backend evolves.
+// ============================================================
+
+function firstFinite(...values) {
+  for (const value of values) {
+    const number = Number(value);
+
+    if (Number.isFinite(number)) {
+      return number;
+    }
+  }
+
+  return null;
+}
+
+function firstValue(...values) {
+  for (const value of values) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
+// COMPONENT
 // ============================================================
 
 export default function Chart() {
@@ -359,19 +326,11 @@ export default function Chart() {
   const markersRef =
     useRef(null);
 
-  // Kill Zone lines
   const priceLinesRef =
     useRef([]);
 
-  // Trigger Line
-  const triggerLineRef =
-    useRef(null);
-
   const visibleRangeRef =
     useRef(null);
-
-  const initialChartReadyRef =
-    useRef(false);
 
   const [bots, setBots] =
     useState([]);
@@ -447,37 +406,10 @@ export default function Chart() {
   const botState =
     selectedBot || {};
 
-  const botCycle =
-    botState.cycle || {};
-
-  const lastAnalysis =
-    botState.lastAnalysis ||
-    botState.analysis ||
-    null;
-
-  const orderBookConfig =
-    botState.orderBookConfig ||
-    {};
-
-  const decisionHistory =
-    Array.isArray(
-      botCycle.decisionHistory
-    )
-      ? botCycle.decisionHistory
-      : [];
-
-  const completedCycleHistory =
-    Array.isArray(
-      botState.completedCycleHistory
-    )
-      ? botState.completedCycleHistory
-      : [];
-
-  const killZone =
-    botState.killZone || {};
-
-  const triggerLine =
-    botState.triggerLine || {};
+  const symbol =
+    String(
+      selectedBot?.symbol || ""
+    ).toUpperCase();
 
   // ============================================================
   // LOAD BOTS
@@ -539,7 +471,7 @@ export default function Chart() {
     );
 
   // ============================================================
-  // INITIAL BOTS + REFRESH
+  // BOT REFRESH
   // ============================================================
 
   useEffect(() => {
@@ -557,16 +489,7 @@ export default function Chart() {
   }, [loadBots]);
 
   // ============================================================
-  // SYMBOL
-  // ============================================================
-
-  const symbol =
-    String(
-      selectedBot?.symbol || ""
-    ).toUpperCase();
-
-  // ============================================================
-  // LOAD MARKET DATA
+  // MARKET DATA
   // ============================================================
 
   const loadMarketData =
@@ -594,13 +517,10 @@ export default function Chart() {
               getTicker(symbol),
             ]);
 
-          const rawCandles =
+          const normalized =
             extractKlines(
               klineResponse
-            );
-
-          const normalized =
-            rawCandles
+            )
               .map(normalizeKline)
               .filter(Boolean)
               .sort(
@@ -611,24 +531,24 @@ export default function Chart() {
           setCandles(normalized);
 
           const bid =
-            Number(
-              tickerResponse?.bidPrice ??
-                tickerResponse?.bid ??
-                tickerResponse?.bestBid
+            firstFinite(
+              tickerResponse?.bidPrice,
+              tickerResponse?.bid,
+              tickerResponse?.bestBid
             );
 
           const ask =
-            Number(
-              tickerResponse?.askPrice ??
-                tickerResponse?.ask ??
-                tickerResponse?.bestAsk
+            firstFinite(
+              tickerResponse?.askPrice,
+              tickerResponse?.ask,
+              tickerResponse?.bestAsk
             );
 
           const last =
-            Number(
-              tickerResponse?.lastPrice ??
-                tickerResponse?.last ??
-                tickerResponse?.price
+            firstFinite(
+              tickerResponse?.lastPrice,
+              tickerResponse?.last,
+              tickerResponse?.price
             );
 
           let price = null;
@@ -665,10 +585,6 @@ export default function Chart() {
       ]
     );
 
-  // ============================================================
-  // MARKET DATA REFRESH
-  // ============================================================
-
   useEffect(() => {
     if (!symbol) {
       return;
@@ -692,6 +608,326 @@ export default function Chart() {
   ]);
 
   // ============================================================
+  // ADVANCED BOT STATE
+  // ============================================================
+
+  const triggerLine =
+    botState.triggerLine || {};
+
+  const position =
+    botState.position ||
+    botState.currentPosition ||
+    botState.livePosition ||
+    {};
+
+  const execution =
+    botState.execution ||
+    botState.executionState ||
+    {};
+
+  const risk =
+    botState.risk ||
+    botState.riskConfig ||
+    {};
+
+  const slTp =
+    botState.slTp ||
+    botState.sltp ||
+    botState.stopTakeProfit ||
+    {};
+
+  const killBot =
+    botState.killBot ||
+    botState.killbot ||
+    botState.killZone ||
+    {};
+
+  const contract =
+    botState.contract ||
+    botState.symbolInfo ||
+    {};
+
+  // ============================================================
+  // DIRECTION
+  // ============================================================
+
+  const botDirection =
+    normalizeDirection(
+      firstValue(
+        botState.direction,
+        position.side,
+        execution.side
+      )
+    );
+
+  // ============================================================
+  // TRIGGER
+  // ============================================================
+
+  const triggerEnabled =
+    Boolean(
+      triggerLine.enabled
+    );
+
+  const triggerPrice =
+    firstFinite(
+      triggerLine.price,
+      triggerLine.triggerPrice
+    );
+
+  const triggerStatus =
+    String(
+      firstValue(
+        triggerLine.status,
+        triggerLine.state,
+        triggerLine.armed
+          ? "ARMED"
+          : triggerEnabled
+          ? "WAITING"
+          : "OFF"
+      )
+    ).toUpperCase();
+
+  // ============================================================
+  // POSITION
+  // ============================================================
+
+  const positionExists =
+    Boolean(
+      position?.exists ??
+        position?.open ??
+        position?.isOpen ??
+        Number(position?.contracts) > 0
+    );
+
+  const positionSide =
+    normalizeDirection(
+      firstValue(
+        position?.side,
+        position?.direction,
+        botState.positionSide,
+        botDirection
+      )
+    );
+
+  const entryPrice =
+    firstFinite(
+      position?.entryPrice,
+      position?.avgEntryPrice,
+      position?.averageEntryPrice,
+      execution?.entryPrice,
+      botState.entryPrice
+    );
+
+  const positionContracts =
+    firstFinite(
+      position?.contracts,
+      position?.quantity,
+      position?.size,
+      execution?.contracts,
+      botState.contracts
+    );
+
+  const positionNotional =
+    firstFinite(
+      position?.notional,
+      execution?.notional,
+      botState.notional
+    );
+
+  // ============================================================
+  // SL / TP
+  // ============================================================
+
+  const slPercent =
+    firstFinite(
+      slTp?.slPercent,
+      slTp?.stopLossPercent,
+      risk?.slPercent,
+      botState.slPercent,
+      botState.config?.slPercent
+    );
+
+  const tpPercent =
+    firstFinite(
+      slTp?.tpPercent,
+      slTp?.takeProfitPercent,
+      risk?.tpPercent,
+      botState.tpPercent,
+      botState.config?.tpPercent
+    );
+
+  const stopLossPrice =
+    firstFinite(
+      slTp?.stopLossPrice,
+      slTp?.slPrice,
+      slTp?.stopPrice,
+      position?.stopLossPrice,
+      position?.slPrice,
+      botState.stopLossPrice,
+      botState.slPrice
+    );
+
+  const takeProfitPrice =
+    firstFinite(
+      slTp?.takeProfitPrice,
+      slTp?.tpPrice,
+      position?.takeProfitPrice,
+      position?.tpPrice,
+      botState.takeProfitPrice,
+      botState.tpPrice
+    );
+
+  // ============================================================
+  // EXECUTION
+  // ============================================================
+
+  const executionStatus =
+    String(
+      firstValue(
+        execution?.status,
+        execution?.state,
+        botState.executionStatus,
+        position?.status,
+        positionExists
+          ? "POSITION OPEN"
+          : triggerEnabled
+          ? "WAITING FOR TRIGGER"
+          : botState.status
+      ) || "-"
+    ).toUpperCase();
+
+  const lastOrderId =
+    firstValue(
+      execution?.orderId,
+      execution?.lastOrderId,
+      position?.orderId,
+      botState.orderId
+    );
+
+  // ============================================================
+  // CONTRACT
+  // ============================================================
+
+  const contractValue =
+    firstFinite(
+      contract?.contractVal,
+      botState.contractVal,
+      botState.config?.contractVal
+    );
+
+  const leverage =
+    firstFinite(
+      execution?.leverage,
+      position?.leverage,
+      botState.leverage,
+      botState.config?.leverage
+    );
+
+  const configuredMargin =
+    firstFinite(
+      execution?.margin,
+      botState.margin,
+      botState.config?.margin
+    );
+
+  const estimatedMargin =
+    firstFinite(
+      execution?.estimatedMargin,
+      botState.estimatedMargin
+    );
+
+  // ============================================================
+  // KILLBOT
+  // ============================================================
+
+  const killBotEnabled =
+    Boolean(
+      killBot?.enabled ??
+        botState.killBotEnabled ??
+        botState.config?.killBotEnabled
+    );
+
+  const killBotActive =
+    Boolean(
+      killBot?.active ??
+        killBot?.triggered ??
+        botState.killBotActive
+    );
+
+  const killReason =
+    firstValue(
+      killBot?.reason,
+      botState.killBotReason
+    );
+
+  // ============================================================
+  // ORDER BOOK DIAGNOSTICS
+  // ============================================================
+
+  const lastAnalysis =
+    botState.lastAnalysis ||
+    botState.analysis ||
+    null;
+
+  const orderBookConfig =
+    botState.orderBookConfig ||
+    {};
+
+  const trend =
+    lastAnalysis?.trend ||
+    null;
+
+  const depthResults =
+    Array.isArray(
+      lastAnalysis?.depths
+    )
+      ? lastAnalysis.depths
+      : [];
+
+  const getDepth =
+    (depth) =>
+      depthResults.find(
+        (item) =>
+          Number(item.depth) ===
+          depth
+      ) || {
+        depth,
+        direction: "NEUTRAL",
+        bidPercentage: 0,
+        askPercentage: 0,
+        imbalance: 0,
+      };
+
+  const depths = [
+    getDepth(15),
+    getDepth(20),
+    getDepth(30),
+    getDepth(60),
+  ];
+
+  const activeTrend =
+    normalizeDirection(
+      typeof trend === "string"
+        ? trend
+        : trend?.direction
+    );
+
+  const counterTrendCount =
+    Number(
+      lastAnalysis
+        ?.counterTrendCount ?? 0
+    );
+
+  const counterTrendRequired =
+    Number(
+      lastAnalysis
+        ?.counterTrendRequired ??
+        orderBookConfig.counterTrendRequired ??
+        3
+    );
+
+  // ============================================================
   // CREATE CHART
   // ============================================================
 
@@ -707,14 +943,13 @@ export default function Chart() {
         chartContainerRef.current,
         {
           width:
-            chartContainerRef
-              .current.clientWidth,
+            chartContainerRef.current
+              .clientWidth,
 
           height: 600,
 
           layout: {
-            textColor:
-              "#d1d5db",
+            textColor: "#d1d5db",
 
             background: {
               type: "solid",
@@ -800,14 +1035,11 @@ export default function Chart() {
       chart.addSeries(
         CandlestickSeries,
         {
-          upColor:
-            "#22c55e",
+          upColor: "#22c55e",
 
-          downColor:
-            "#ef4444",
+          downColor: "#ef4444",
 
-          borderVisible:
-            false,
+          borderVisible: false,
 
           wickUpColor:
             "#22c55e",
@@ -832,9 +1064,6 @@ export default function Chart() {
     markersRef.current =
       markers;
 
-    initialChartReadyRef.current =
-      true;
-
     const resizeObserver =
       new ResizeObserver(
         () => {
@@ -847,7 +1076,8 @@ export default function Chart() {
           chart.applyOptions({
             width:
               chartContainerRef
-                .current.clientWidth,
+                .current
+                .clientWidth,
           });
         }
       );
@@ -859,7 +1089,6 @@ export default function Chart() {
     return () => {
       resizeObserver.disconnect();
 
-      // Remove Kill Zone lines.
       for (
         const line of
         priceLinesRef.current
@@ -875,29 +1104,10 @@ export default function Chart() {
 
       priceLinesRef.current = [];
 
-      // Remove Trigger Line.
-      if (triggerLineRef.current) {
-        try {
-          candleSeries.removePriceLine(
-            triggerLineRef.current
-          );
-        } catch {
-          // Ignore stale trigger line.
-        }
-      }
-
-      triggerLineRef.current =
-        null;
-
       markersRef.current = null;
-
       candleSeriesRef.current =
         null;
-
       chartRef.current = null;
-
-      initialChartReadyRef.current =
-        false;
 
       chart.remove();
     };
@@ -934,19 +1144,18 @@ export default function Chart() {
 
     series.setData(candles);
 
-    const rangeToRestore =
-      visibleRangeRef.current;
-
-    if (rangeToRestore) {
+    if (
+      visibleRangeRef.current
+    ) {
       requestAnimationFrame(() => {
         try {
           chart
             .timeScale()
             .setVisibleLogicalRange(
-              rangeToRestore
+              visibleRangeRef.current
             );
         } catch {
-          // Ignore chart teardown errors.
+          // Ignore teardown.
         }
       });
     } else {
@@ -957,7 +1166,12 @@ export default function Chart() {
   }, [candles]);
 
   // ============================================================
-  // KILL ZONE PRICE LINES
+  // PRICE LINES
+  //
+  // Trigger
+  // Entry
+  // Stop Loss
+  // Take Profit
   // ============================================================
 
   useEffect(() => {
@@ -968,7 +1182,6 @@ export default function Chart() {
       return;
     }
 
-    // Remove old Kill Zone lines.
     for (
       const line of
       priceLinesRef.current
@@ -984,77 +1197,33 @@ export default function Chart() {
 
     priceLinesRef.current = [];
 
-    if (!killZone.enabled) {
-      return;
-    }
-
-    const low =
-      Number(killZone.low);
-
-    const high =
-      Number(killZone.high);
-
-    const hasLow =
-      Number.isFinite(low);
-
-    const hasHigh =
-      Number.isFinite(high);
-
-    if (!hasLow && !hasHigh) {
-      return;
-    }
-
     // ----------------------------------------------------------
-    // ONE-SIDED KILL LEVEL
+    // TRIGGER
     // ----------------------------------------------------------
 
     if (
-      hasLow &&
-      !hasHigh
+      triggerEnabled &&
+      Number.isFinite(
+        triggerPrice
+      )
     ) {
       const line =
         series.createPriceLine({
-          price: low,
+          price: triggerPrice,
 
-          color: "#f59e0b",
+          color: "#2563eb",
 
-          lineWidth: 2,
+          lineWidth: 3,
 
           lineStyle:
             LineStyle.Dashed,
 
-          axisLabelVisible:
-            true,
+          axisLabelVisible: true,
 
           title:
-            "KILL LEVEL",
-        });
-
-      priceLinesRef.current.push(
-        line
-      );
-    }
-
-    if (
-      hasHigh &&
-      !hasLow
-    ) {
-      const line =
-        series.createPriceLine({
-          price: high,
-
-          color: "#f59e0b",
-
-          lineWidth: 2,
-
-          lineStyle:
-            LineStyle.Dashed,
-
-          axisLabelVisible:
-            true,
-
-          title:
-            "KILL LEVEL",
+            botDirection === "SHORT"
+              ? "TRIGGER SHORT"
+              : "TRIGGER LONG",
         });
 
       priceLinesRef.current.push(
@@ -1063,377 +1232,132 @@ export default function Chart() {
     }
 
     // ----------------------------------------------------------
-    // TWO-SIDED KILL ZONE
+    // ENTRY
     // ----------------------------------------------------------
 
     if (
-      hasLow &&
-      hasHigh
+      positionExists &&
+      Number.isFinite(
+        entryPrice
+      )
     ) {
-      const lower =
-        Math.min(
-          low,
-          high
-        );
-
-      const upper =
-        Math.max(
-          low,
-          high
-        );
-
-      const lowerLine =
+      const line =
         series.createPriceLine({
-          price: lower,
+          price: entryPrice,
 
           color: "#f59e0b",
 
           lineWidth: 2,
 
           lineStyle:
-            LineStyle.Dashed,
+            LineStyle.Solid,
 
-          axisLabelVisible:
-            true,
+          axisLabelVisible: true,
 
-          title:
-            "KILL LOW",
-        });
-
-      const upperLine =
-        series.createPriceLine({
-          price: upper,
-
-          color: "#f59e0b",
-
-          lineWidth: 2,
-
-          lineStyle:
-            LineStyle.Dashed,
-
-          axisLabelVisible:
-            true,
-
-          title:
-            "KILL HIGH",
+          title: "ENTRY",
         });
 
       priceLinesRef.current.push(
-        lowerLine,
-        upperLine
+        line
       );
     }
-  }, [
-    selectedBot?.id,
-    killZone.enabled,
-    killZone.low,
-    killZone.high,
-  ]);
-
-  // ============================================================
-  // TRIGGER LINE
-  //
-  // LONG:
-  // price comes DOWN to trigger price.
-  //
-  // SHORT:
-  // price comes UP to trigger price.
-  //
-  // Touching the line:
-  // -> bot becomes ARMED
-  //
-  // It does NOT:
-  // -> execute trade
-  // -> kill bot
-  // -> change order-book logic
-  // ============================================================
-
-  useEffect(() => {
-    const series =
-      candleSeriesRef.current;
-
-    if (!series) {
-      return;
-    }
 
     // ----------------------------------------------------------
-    // REMOVE OLD TRIGGER LINE
+    // STOP LOSS
     // ----------------------------------------------------------
-
-    if (triggerLineRef.current) {
-      try {
-        series.removePriceLine(
-          triggerLineRef.current
-        );
-      } catch {
-        // Ignore stale trigger line.
-      }
-    }
-
-    triggerLineRef.current =
-      null;
-
-    // ----------------------------------------------------------
-    // READ CONFIG
-    // ----------------------------------------------------------
-
-    const enabled =
-      Boolean(
-        botState?.triggerLine
-          ?.enabled
-      );
-
-    const price =
-      Number(
-        botState?.triggerLine
-          ?.price
-      );
 
     if (
-      !enabled ||
-      !Number.isFinite(price)
+      Number.isFinite(
+        stopLossPrice
+      )
     ) {
-      return;
-    }
+      const line =
+        series.createPriceLine({
+          price: stopLossPrice,
 
-    // ----------------------------------------------------------
-    // TITLE
-    // ----------------------------------------------------------
+          color: "#ef4444",
 
-    const direction =
-      normalizeDirection(
-        botState?.direction
-      );
+          lineWidth: 2,
 
-    let title =
-      "TRIGGER LINE";
+          lineStyle:
+            LineStyle.Dashed,
 
-    if (direction === "LONG") {
-      title =
-        "TRIGGER LONG";
-    }
+          axisLabelVisible: true,
 
-    if (direction === "SHORT") {
-      title =
-        "TRIGGER SHORT";
-    }
-
-    // ----------------------------------------------------------
-    // CREATE BLUE TRIGGER LINE
-    // ----------------------------------------------------------
-
-    triggerLineRef.current =
-      series.createPriceLine({
-        price,
-
-        color: "#2563eb",
-
-        lineWidth: 3,
-
-        lineStyle:
-          LineStyle.Dashed,
-
-        axisLabelVisible:
-          true,
-
-        title,
-      });
-  }, [
-    selectedBot?.id,
-    botState?.triggerLine?.enabled,
-    botState?.triggerLine?.price,
-    botState?.direction,
-  ]);
-
-  // ============================================================
-  // COMPLETED CYCLE MARKERS
-  //
-  // LONG  -> LONG marker
-  // SHORT -> SHORT marker
-  // NEUTRAL -> NOTHING
-  // ============================================================
-
-  useEffect(() => {
-    const markers =
-      markersRef.current;
-
-    if (!markers) {
-      return;
-    }
-
-    if (!candles.length) {
-      markers.setMarkers([]);
-      return;
-    }
-
-    const completedMarkers =
-      completedCycleHistory
-        .map((cycle) => {
-          const decision =
-            normalizeDirection(
-              cycle?.decision
-            );
-
-          if (
-            decision !== "LONG" &&
-            decision !== "SHORT"
-          ) {
-            return null;
-          }
-
-          const timestamp =
-            new Date(
-              cycle?.time
-            ).getTime();
-
-          if (
-            !Number.isFinite(
-              timestamp
+          title: `SL ${
+            Number.isFinite(
+              slPercent
             )
-          ) {
-            return null;
-          }
+              ? `${slPercent}%`
+              : ""
+          }`,
+        });
 
-          const candleTime =
-            findNearestCandleTime(
-              candles,
-              timestamp
-            );
+      priceLinesRef.current.push(
+        line
+      );
+    }
 
-          if (!candleTime) {
-            return null;
-          }
+    // ----------------------------------------------------------
+    // TAKE PROFIT
+    // ----------------------------------------------------------
 
-          if (decision === "LONG") {
-            return {
-              time: candleTime,
+    if (
+      Number.isFinite(
+        takeProfitPrice
+      )
+    ) {
+      const line =
+        series.createPriceLine({
+          price: takeProfitPrice,
 
-              position:
-                "belowBar",
+          color: "#22c55e",
 
-              shape:
-                "arrowUp",
+          lineWidth: 2,
 
-              color:
-                "#22c55e",
+          lineStyle:
+            LineStyle.Dashed,
 
-              text:
-                "LONG",
+          axisLabelVisible: true,
 
-              size: 2,
+          title: `TP ${
+            Number.isFinite(
+              tpPercent
+            )
+              ? `${tpPercent}%`
+              : ""
+          }`,
+        });
 
-              id:
-                `cycle-${cycle.cycleNumber}-LONG`,
-            };
-          }
-
-          return {
-            time: candleTime,
-
-            position:
-              "aboveBar",
-
-            shape:
-              "arrowDown",
-
-            color:
-              "#ef4444",
-
-            text:
-              "SHORT",
-
-            size: 2,
-
-            id:
-              `cycle-${cycle.cycleNumber}-SHORT`,
-          };
-        })
-        .filter(Boolean)
-        .sort(
-          (a, b) =>
-            Number(a.time) -
-            Number(b.time)
-        );
-
-    markers.setMarkers(
-      completedMarkers
-    );
+      priceLinesRef.current.push(
+        line
+      );
+    }
   }, [
     selectedBot?.id,
-    completedCycleHistory,
-    candles,
+    triggerEnabled,
+    triggerPrice,
+    positionExists,
+    entryPrice,
+    stopLossPrice,
+    takeProfitPrice,
+    slPercent,
+    tpPercent,
+    botDirection,
   ]);
-
-  // ============================================================
-  // CURRENT ORDER BOOK
-  // ============================================================
-
-  const trend =
-    lastAnalysis?.trend ||
-    null;
-
-  const raw200Trend =
-    getRawTrendDirection(
-      trend
-    );
-
-  const activeTrend =
-    getTrendDirection(
-      trend
-    );
-
-  const depthResults =
-    Array.isArray(
-      lastAnalysis?.depths
-    )
-      ? lastAnalysis.depths
-      : [];
-
-  const getDepth =
-    (depth) =>
-      depthResults.find(
-        (item) =>
-          Number(item.depth) ===
-          depth
-      ) || {
-        depth,
-        direction:
-          "NEUTRAL",
-        bidPercentage: 0,
-        askPercentage: 0,
-        imbalance: 0,
-      };
-
-  const depth15 =
-    getDepth(15);
-
-  const depth20 =
-    getDepth(20);
-
-  const depth30 =
-    getDepth(30);
-
-  const depth60 =
-    getDepth(60);
-
-  const botDirection =
-    normalizeDirection(
-      botState.direction
-    );
-
-  const currentDecision =
-    normalizeDirection(
-      botState.lastDecision
-    );
 
   // ============================================================
   // RENDER
   // ============================================================
 
   return (
-    <div>
+    <div
+      style={{
+        padding: "16px",
+      }}
+    >
       <h1>
-        Advanced Bot Chart
+        AdvancedBot Control Chart
       </h1>
 
       {/* ======================================================
@@ -1450,7 +1374,7 @@ export default function Chart() {
         }}
       >
         <h2>
-          Advanced Bot
+          Bot
         </h2>
 
         {advancedBots.length === 0 ? (
@@ -1469,10 +1393,6 @@ export default function Chart() {
                   "wrap",
               }}
             >
-              <label>
-                Select Bot
-              </label>
-
               <select
                 value={
                   selectedBotId ||
@@ -1505,187 +1425,18 @@ export default function Chart() {
                 type="button"
                 onClick={loadBots}
               >
-                Refresh Bots
+                Refresh
               </button>
             </div>
-
-            {selectedBot && (
-              <div
-                style={{
-                  marginTop: "16px",
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(150px, 1fr))",
-                  gap: "10px",
-                }}
-              >
-                <div>
-                  <strong>
-                    Bot
-                  </strong>
-                  <br />
-                  {selectedBot.id}
-                </div>
-
-                <div>
-                  <strong>
-                    Symbol
-                  </strong>
-                  <br />
-                  {symbol}
-                </div>
-
-                <div>
-                  <strong>
-                    Direction
-                  </strong>
-                  <br />
-                  {botDirection}
-                </div>
-
-                <div>
-                  <strong>
-                    Status
-                  </strong>
-                  <br />
-                  {botState.status ||
-                    "-"}
-                </div>
-
-                <div>
-                  <strong>
-                    Active Trend
-                  </strong>
-                  <br />
-                  {activeTrend}
-                </div>
-
-                <div>
-                  <strong>
-                    200 Raw Trend
-                  </strong>
-                  <br />
-                  {raw200Trend}
-                </div>
-
-                <div>
-                  <strong>
-                    Trigger Minutes
-                  </strong>
-                  <br />
-                  {Number(
-                    botCycle.triggerMinutes ??
-                      0
-                  )}
-                  /
-                  {Number(
-                    botState
-                      ?.cycleTriggerMinutes ??
-                      botState?.config
-                        ?.cycleTriggerMinutes ??
-                      botCycle
-                        .triggerRequired ??
-                      0
-                  ) || "-"}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
 
-      {/* ======================================================
-          PRICE CHART
-          ====================================================== */}
-
       {selectedBot && (
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #374151",
-            borderRadius: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          <h2>
-            Price Chart
-          </h2>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              alignItems:
-                "center",
-              flexWrap:
-                "wrap",
-            }}
-          >
-            <div>
-              <strong>
-                Bot Symbol:
-              </strong>{" "}
-              {symbol || "-"}
-            </div>
-
-            <label>
-              Timeframe:
-            </label>
-
-            <select
-              value={timeframe}
-              onChange={(event) =>
-                setTimeframe(
-                  event.target.value
-                )
-              }
-            >
-              <option value="1m">
-                1m
-              </option>
-
-              <option value="5m">
-                5m
-              </option>
-
-              <option value="15m">
-                15m
-              </option>
-
-              <option value="30m">
-                30m
-              </option>
-
-              <option value="1h">
-                1h
-              </option>
-            </select>
-
-            <button
-              type="button"
-              onClick={
-                loadMarketData
-              }
-            >
-              Refresh
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: "10px",
-            }}
-          >
-            Chart Time:{" "}
-            <strong>
-              Europe/Berlin
-            </strong>
-          </div>
-
-          {/* ==================================================
-              TRIGGER / KILL STATUS
-              ================================================== */}
+        <>
+          {/* ====================================================
+              LIVE STATUS
+              ==================================================== */}
 
           <div
             style={{
@@ -1693,767 +1444,970 @@ export default function Chart() {
               gridTemplateColumns:
                 "repeat(auto-fit, minmax(180px, 1fr))",
               gap: "10px",
-              marginTop: "12px",
+              marginBottom: "16px",
             }}
           >
             <div
               style={{
-                padding: "10px",
+                padding: "14px",
                 border:
                   "1px solid #374151",
-                borderRadius: "6px",
+                borderRadius: "8px",
               }}
             >
               <strong>
-                Trigger Line
+                SYMBOL
               </strong>
-              <br />
 
-              {triggerLine.enabled
-                ? "ON"
-                : "OFF"}
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight:
+                    "bold",
+                  marginTop: "6px",
+                }}
+              >
+                {symbol}
+              </div>
             </div>
 
             <div
               style={{
-                padding: "10px",
+                padding: "14px",
                 border:
                   "1px solid #374151",
-                borderRadius: "6px",
+                borderRadius: "8px",
               }}
             >
               <strong>
-                Trigger Price
+                BOT STATUS
               </strong>
-              <br />
 
-              {Number.isFinite(
-                Number(
-                  triggerLine.price
-                )
-              )
-                ? triggerLine.price
-                : "-"}
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontWeight:
+                    "bold",
+                }}
+              >
+                {String(
+                  botState.status ||
+                    executionStatus ||
+                    "-"
+                ).toUpperCase()}
+              </div>
             </div>
 
             <div
               style={{
-                padding: "10px",
+                padding: "14px",
                 border:
                   "1px solid #374151",
-                borderRadius: "6px",
+                borderRadius: "8px",
               }}
             >
               <strong>
-                Trigger Status
+                DIRECTION
               </strong>
-              <br />
 
-              {triggerLine.enabled
-                ? triggerLine.armed
-                  ? "ARMED"
-                  : "WAITING"
-                : "OFF"}
+              <div
+                className={directionClass(
+                  botDirection
+                )}
+                style={{
+                  marginTop: "6px",
+                  fontWeight:
+                    "bold",
+                }}
+              >
+                {botDirection}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "14px",
+                border:
+                  "1px solid #374151",
+                borderRadius: "8px",
+              }}
+            >
+              <strong>
+                CURRENT PRICE
+              </strong>
+
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontWeight:
+                    "bold",
+                }}
+              >
+                {formatNumber(
+                  currentPrice
+                )}
+              </div>
             </div>
           </div>
 
-          <div
-            style={{
-              width: "100%",
-              height: "600px",
-              position:
-                "relative",
-              marginTop: "16px",
-            }}
-          >
-            <div
-              ref={
-                chartContainerRef
-              }
-              style={{
-                width: "100%",
-                height: "600px",
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================
-          CURRENT ORDER BOOK
-          ====================================================== */}
-
-      {selectedBot && (
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #374151",
-            borderRadius: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          <h2>
-            Current Order Book
-          </h2>
+          {/* ====================================================
+              TRADE LIFECYCLE
+              ==================================================== */}
 
           <div
             style={{
-              marginBottom:
-                "16px",
-              padding: "12px",
+              padding: "16px",
               border:
                 "1px solid #374151",
-              borderRadius: "6px",
+              borderRadius: "8px",
+              marginBottom: "16px",
             }}
           >
-            <strong>
-              ACTIVE TREND
-            </strong>
+            <h2>
+              Trade Lifecycle
+            </h2>
 
             <div
-              className={directionClass(
-                activeTrend
-              )}
               style={{
-                marginTop: "6px",
-                fontWeight:
-                  "bold",
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "10px",
               }}
             >
-              {activeTrend}
-            </div>
+              <div
+                style={{
+                  padding: "12px",
+                  border:
+                    "1px solid #374151",
+                  borderRadius: "6px",
+                }}
+              >
+                <strong>
+                  1. TRIGGER
+                </strong>
 
-            <div>
-              {percentageForTrend(
-                trend
-              ).toFixed(2)}
-              %
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {triggerEnabled
+                    ? triggerStatus
+                    : "OFF"}
+                </div>
+
+                <div>
+                  Price:{" "}
+                  {formatNumber(
+                    triggerPrice
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "12px",
+                  border:
+                    "1px solid #374151",
+                  borderRadius: "6px",
+                }}
+              >
+                <strong>
+                  2. POSITION
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {positionExists
+                    ? "OPEN"
+                    : "FLAT"}
+                </div>
+
+                {positionExists && (
+                  <>
+                    <div>
+                      Side:{" "}
+                      {positionSide}
+                    </div>
+
+                    <div>
+                      Entry:{" "}
+                      {formatNumber(
+                        entryPrice
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div
+                style={{
+                  padding: "12px",
+                  border:
+                    "1px solid #374151",
+                  borderRadius: "6px",
+                }}
+              >
+                <strong>
+                  3. STOP LOSS
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {formatNumber(
+                    stopLossPrice
+                  )}
+                </div>
+
+                <div>
+                  Distance:{" "}
+                  {formatPercent(
+                    slPercent
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "12px",
+                  border:
+                    "1px solid #374151",
+                  borderRadius: "6px",
+                }}
+              >
+                <strong>
+                  4. TAKE PROFIT
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {formatNumber(
+                    takeProfitPrice
+                  )}
+                </div>
+
+                <div>
+                  Distance:{" "}
+                  {formatPercent(
+                    tpPercent
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ====================================================
+              PRICE CHART
+              ==================================================== */}
+
+          <div
+            style={{
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                flexWrap:
+                  "wrap",
+                gap: "12px",
+              }}
+            >
+              <h2>
+                Price Chart
+              </h2>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  alignItems:
+                    "center",
+                }}
+              >
+                <label>
+                  Timeframe
+                </label>
+
+                <select
+                  value={timeframe}
+                  onChange={(event) =>
+                    setTimeframe(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="1m">
+                    1m
+                  </option>
+
+                  <option value="5m">
+                    5m
+                  </option>
+
+                  <option value="15m">
+                    15m
+                  </option>
+
+                  <option value="30m">
+                    30m
+                  </option>
+
+                  <option value="1h">
+                    1h
+                  </option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={
+                    loadMarketData
+                  }
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
 
             <div
               style={{
                 marginTop: "8px",
+                fontSize: "13px",
+                opacity: 0.8,
               }}
             >
-              200 Raw Trend:{" "}
-              <strong>
-                {raw200Trend}
-              </strong>
+              Blue = Trigger | Orange =
+              Entry | Red = SL | Green =
+              TP
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: "600px",
+                marginTop: "12px",
+              }}
+            >
+              <div
+                ref={
+                  chartContainerRef
+                }
+                style={{
+                  width: "100%",
+                  height: "600px",
+                }}
+              />
             </div>
           </div>
 
+          {/* ====================================================
+              TRIGGER DETAILS
+              ==================================================== */}
+
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(4, minmax(0, 1fr))",
-              gap: "10px",
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
             }}
           >
-            {[
-              depth15,
-              depth20,
-              depth30,
-              depth60,
-            ].map((depth) => (
-              <div
-                key={depth.depth}
-                style={{
-                  padding: "12px",
-                  border:
-                    "1px solid #374151",
-                  borderRadius:
-                    "6px",
-                }}
-              >
+            <h2>
+              Trigger Line
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div>
                 <strong>
-                  {depth.depth} Levels
+                  Enabled
+                </strong>
+                <br />
+                {triggerEnabled
+                  ? "YES"
+                  : "NO"}
+              </div>
+
+              <div>
+                <strong>
+                  Direction
+                </strong>
+                <br />
+                {botDirection}
+              </div>
+
+              <div>
+                <strong>
+                  Trigger Price
+                </strong>
+                <br />
+                {formatNumber(
+                  triggerPrice
+                )}
+              </div>
+
+              <div>
+                <strong>
+                  Status
+                </strong>
+                <br />
+                {triggerEnabled
+                  ? triggerStatus
+                  : "OFF"}
+              </div>
+
+              <div>
+                <strong>
+                  Triggered At
+                </strong>
+                <br />
+                {formatBerlinDateTime(
+                  triggerLine.triggeredAt
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ====================================================
+              POSITION / EXECUTION
+              ==================================================== */}
+
+          <div
+            style={{
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <h2>
+              Position & Execution
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <strong>
+                  Position
+                </strong>
+                <br />
+                {positionExists
+                  ? "OPEN"
+                  : "FLAT"}
+              </div>
+
+              <div>
+                <strong>
+                  Side
+                </strong>
+                <br />
+                {positionSide}
+              </div>
+
+              <div>
+                <strong>
+                  Entry
+                </strong>
+                <br />
+                {formatNumber(
+                  entryPrice
+                )}
+              </div>
+
+              <div>
+                <strong>
+                  Contracts
+                </strong>
+                <br />
+                {Number.isFinite(
+                  positionContracts
+                )
+                  ? positionContracts
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Contract Value
+                </strong>
+                <br />
+                {Number.isFinite(
+                  contractValue
+                )
+                  ? `${contractValue} USDT`
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Notional
+                </strong>
+                <br />
+                {Number.isFinite(
+                  positionNotional
+                )
+                  ? `${positionNotional.toFixed(
+                      4
+                    )} USDT`
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Leverage
+                </strong>
+                <br />
+                {Number.isFinite(
+                  leverage
+                )
+                  ? `${leverage}x`
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Configured Margin
+                </strong>
+                <br />
+                {Number.isFinite(
+                  configuredMargin
+                )
+                  ? `${configuredMargin.toFixed(
+                      4
+                    )} USDT`
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Estimated Margin
+                </strong>
+                <br />
+                {Number.isFinite(
+                  estimatedMargin
+                )
+                  ? `${estimatedMargin.toFixed(
+                      4
+                    )} USDT`
+                  : "-"}
+              </div>
+
+              <div>
+                <strong>
+                  Execution
+                </strong>
+                <br />
+                {executionStatus}
+              </div>
+
+              <div>
+                <strong>
+                  Order ID
+                </strong>
+                <br />
+                {lastOrderId || "-"}
+              </div>
+            </div>
+          </div>
+
+          {/* ====================================================
+              SL / TP
+              ==================================================== */}
+
+          <div
+            style={{
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <h2>
+              Risk Management
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <strong>
+                  Stop Loss
                 </strong>
 
                 <div
-                  className={directionClass(
-                    depth.direction
-                  )}
                   style={{
+                    marginTop: "6px",
+                    fontSize: "18px",
                     fontWeight:
                       "bold",
-                    marginTop:
-                      "6px",
                   }}
                 >
-                  {normalizeDirection(
-                    depth.direction
+                  {formatNumber(
+                    stopLossPrice
                   )}
                 </div>
 
                 <div>
-                  {percentageForDepth(
-                    depth
-                  ).toFixed(2)}
-                  %
+                  {formatPercent(
+                    slPercent
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div
-            style={{
-              marginTop: "16px",
-            }}
-          >
-            Counter Trend:{" "}
-            {Number(
-              lastAnalysis
-                ?.counterTrendCount ??
-                0
-            )}
-            /
-            {Number(
-              lastAnalysis
-                ?.counterTrendRequired ??
-                orderBookConfig
-                  .counterTrendRequired ??
-                3
-            )}
-
-            <br />
-
-            Current Decision:{" "}
-            <strong>
-              {currentDecision}
-            </strong>
-
-            <br />
-
-            Reason:{" "}
-            {lastAnalysis
-              ?.reason || "-"}
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================
-          CURRENT 10-MINUTE HISTORY
-          ====================================================== */}
-
-      {selectedBot && (
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #374151",
-            borderRadius: "8px",
-            marginBottom: "16px",
-            overflowX:
-              "auto",
-          }}
-        >
-          <h2>
-            10 Minute Decision History
-          </h2>
-
-          <div
-            style={{
-              marginBottom:
-                "12px",
-            }}
-          >
-            {decisionHistory.length} /{" "}
-            {Number(
-              botCycle.total ??
-                botState?.cycleMinutes ??
-                10
-            )}
-          </div>
-
-          {decisionHistory.length ===
-          0 ? (
-            <div>
-              No scans recorded yet.
-            </div>
-          ) : (
-            <table
-              style={{
-                width: "100%",
-                borderCollapse:
-                  "collapse",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Time</th>
-                  <th>Coin</th>
-                  <th>Trend</th>
-                  <th>200 Raw</th>
-                  <th>15</th>
-                  <th>20</th>
-                  <th>30</th>
-                  <th>60</th>
-                  <th>Counter</th>
-                  <th>Decision</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {decisionHistory.map(
-                  (row) => {
-                    const rowTrend =
-                      getTrendDirection(
-                        row.trend
-                      );
-
-                    const rowRawTrend =
-                      getRawTrendDirection(
-                        row.trend
-                      );
-
-                    return (
-                      <tr
-                        key={`${row.number}-${row.time}`}
-                      >
-                        <td>
-                          {row.number}
-                        </td>
-
-                        <td>
-                          {formatBerlinTime(
-                            row.time
-                          )}
-                        </td>
-
-                        <td>
-                          {row.coin ||
-                            symbol}
-                        </td>
-
-                        <td>
-                          <strong>
-                            {
-                              rowTrend
-                            }
-                          </strong>
-
-                          <br />
-
-                          {percentageForTrend(
-                            row.trend
-                          ).toFixed(2)}
-                          %
-                        </td>
-
-                        <td>
-                          <strong>
-                            {
-                              rowRawTrend
-                            }
-                          </strong>
-                        </td>
-
-                        {[
-                          15,
-                          20,
-                          30,
-                          60,
-                        ].map(
-                          (
-                            depthNumber
-                          ) => {
-                            const depth =
-                              Array.isArray(
-                                row.depths
-                              )
-                                ? row.depths.find(
-                                    (
-                                      item
-                                    ) =>
-                                      Number(
-                                        item.depth
-                                      ) ===
-                                      depthNumber
-                                  )
-                                : null;
-
-                            return (
-                              <td
-                                key={
-                                  depthNumber
-                                }
-                              >
-                                <strong>
-                                  {normalizeDirection(
-                                    depth?.direction
-                                  )}
-                                </strong>
-
-                                <br />
-
-                                {percentageForDepth(
-                                  depth
-                                ).toFixed(
-                                  2
-                                )}
-                                %
-                              </td>
-                            );
-                          }
-                        )}
-
-                        <td>
-                          {Number(
-                            row.counterTrendCount ??
-                              0
-                          )}
-                          /
-                          {Number(
-                            row.counterTrendRequired ??
-                              3
-                          )}
-                        </td>
-
-                        <td>
-                          <strong>
-                            {normalizeDirection(
-                              row.decision
-                            )}
-                          </strong>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
-          )}
-
-          <div
-            style={{
-              marginTop: "16px",
-            }}
-          >
-            Cycle Progress:{" "}
-            {Number(
-              botCycle.scans ?? 0
-            )}
-            /
-            {Number(
-              botCycle.total ??
-                botState?.cycleMinutes ??
-                10
-            )}
-
-            <br />
-
-            Trigger Minutes:{" "}
-            {Number(
-              botCycle.triggerMinutes ??
-                0
-            )}
-            /
-            {Number(
-              botState
-                ?.cycleTriggerMinutes ??
-                botCycle
-                  .triggerRequired ??
-                0
-            ) || "-"}
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================
-          COMPLETED CYCLE HISTORY
-          ====================================================== */}
-
-      {selectedBot && (
-        <div
-          style={{
-            padding: "16px",
-            border:
-              "1px solid #374151",
-            borderRadius: "8px",
-            marginBottom: "16px",
-            overflowX:
-              "auto",
-          }}
-        >
-          <h2>
-            Completed Cycle History
-          </h2>
-
-          <div
-            style={{
-              marginBottom:
-                "12px",
-            }}
-          >
-            {
-              completedCycleHistory.length
-            }{" "}
-            cycles
-          </div>
-
-          {completedCycleHistory.length ===
-          0 ? (
-            <div>
-              No completed cycles yet.
-            </div>
-          ) : (
-            <table
-              style={{
-                width: "100%",
-                borderCollapse:
-                  "collapse",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Coin</th>
-                  <th>Active Trend</th>
-                  <th>Entry Votes</th>
-                  <th>Decision</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {completedCycleHistory.map(
-                  (cycle) => (
-                    <tr
-                      key={`${cycle.cycleNumber}-${cycle.time}`}
-                    >
-                      <td>
-                        {formatBerlinTime(
-                          cycle.time
-                        )}
-                      </td>
-
-                      <td>
-                        {cycle.coin ||
-                          symbol}
-                      </td>
-
-                      <td>
-                        {getTrendDirection(
-                          cycle.trend
-                        )}
-                      </td>
-
-                      <td>
-                        {Number(
-                          cycle.entryVotes ??
-                            0
-                        )}
-                        /
-                        {Number(
-                          cycle.totalScans ??
-                            10
-                        )}
-                      </td>
-
-                      <td>
-                        <strong>
-                          {normalizeDirection(
-                            cycle.decision
-                          )}
-                        </strong>
-                      </td>
-
-                      <td>
-                        {cycle.reason ||
-                          "-"}
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {/* ======================================================
-          MARKET SUMMARY
-          ====================================================== */}
-
-      <div
-        style={{
-          marginTop: "16px",
-          padding: "16px",
-          border:
-            "1px solid #374151",
-          borderRadius: "8px",
-        }}
-      >
-        <h2>
-          Market Summary
-        </h2>
-
-        <div>
-          Symbol:{" "}
-          <strong>
-            {symbol || "-"}
-          </strong>
-        </div>
-
-        <div>
-          Current Price:{" "}
-          <strong>
-            {Number.isFinite(
-              currentPrice
-            )
-              ? currentPrice
-              : "-"}
-          </strong>
-        </div>
-
-        <div>
-          Last Update:{" "}
-          <strong>
-            {formatBerlinDateTime(
-              lastUpdate
-            )}
-          </strong>
-        </div>
-
-        <div>
-          Bot Status:{" "}
-          <strong>
-            {botState.status || "-"}
-          </strong>
-        </div>
-
-        <div>
-          Final/current decision:{" "}
-          <strong>
-            {currentDecision}
-          </strong>
-        </div>
-
-        {/* ==================================================
-            TRIGGER LINE STATUS
-            ================================================== */}
-
-        <div
-          style={{
-            marginTop: "10px",
-          }}
-        >
-          Trigger Line:{" "}
-          <strong>
-            {triggerLine.enabled
-              ? "ON"
-              : "OFF"}
-          </strong>
-        </div>
-
-        {triggerLine.enabled && (
-          <>
-            <div>
-              Trigger Price:{" "}
-              <strong>
-                {Number.isFinite(
-                  Number(
-                    triggerLine.price
-                  )
-                )
-                  ? triggerLine.price
-                  : "-"}
-              </strong>
-            </div>
-
-            <div>
-              Trigger Status:{" "}
-              <strong>
-                {triggerLine.armed
-                  ? "ARMED"
-                  : "WAITING"}
-              </strong>
-            </div>
-
-            {triggerLine.triggeredAt && (
               <div>
-                Triggered At:{" "}
                 <strong>
-                  {formatBerlinDateTime(
-                    triggerLine.triggeredAt
+                  Take Profit
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "18px",
+                    fontWeight:
+                      "bold",
+                  }}
+                >
+                  {formatNumber(
+                    takeProfitPrice
                   )}
-                </strong>
+                </div>
+
+                <div>
+                  {formatPercent(
+                    tpPercent
+                  )}
+                </div>
               </div>
-            )}
-          </>
-        )}
 
-        {/* ==================================================
-            KILL ZONE STATUS
-            ================================================== */}
-
-        <div
-          style={{
-            marginTop: "10px",
-          }}
-        >
-          Kill Zone:{" "}
-          <strong>
-            {killZone.enabled
-              ? "ON"
-              : "OFF"}
-          </strong>
-        </div>
-
-        {killZone.enabled && (
-          <>
-            <div>
-              Kill Low:{" "}
-              {Number.isFinite(
-                Number(
-                  killZone.low
-                )
-              )
-                ? killZone.low
-                : "-"}
-            </div>
-
-            <div>
-              Kill High:{" "}
-              {Number.isFinite(
-                Number(
-                  killZone.high
-                )
-              )
-                ? killZone.high
-                : "-"}
-            </div>
-
-            {killZone.reason && (
               <div>
-                Kill Reason:{" "}
                 <strong>
-                  {killZone.reason}
+                  Entry Price
                 </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {formatNumber(
+                    entryPrice
+                  )}
+                </div>
               </div>
-            )}
-          </>
-        )}
 
-        {loading && (
-          <div>
-            Updating market data...
+              <div>
+                <strong>
+                  Current Price
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {formatNumber(
+                    currentPrice
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
 
-        {error && (
+          {/* ====================================================
+              KILLBOT
+              ==================================================== */}
+
           <div
             style={{
-              marginTop: "10px",
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
             }}
           >
-            Error: {error}
+            <h2>
+              Killbot / Safety
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <strong>
+                  Killbot
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontWeight:
+                      "bold",
+                  }}
+                >
+                  {killBotEnabled
+                    ? "ENABLED"
+                    : "DISABLED"}
+                </div>
+              </div>
+
+              <div>
+                <strong>
+                  Killbot State
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontWeight:
+                      "bold",
+                  }}
+                >
+                  {killBotActive
+                    ? "ACTIVE"
+                    : "INACTIVE"}
+                </div>
+              </div>
+
+              <div>
+                <strong>
+                  Reason
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                  }}
+                >
+                  {killReason || "-"}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* ====================================================
+              ORDER BOOK DIAGNOSTICS
+              ==================================================== */}
+
+          <div
+            style={{
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <h2>
+              Order-Flow Diagnostics
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <strong>
+                  200 Trend
+                </strong>
+
+                <div
+                  className={directionClass(
+                    activeTrend
+                  )}
+                  style={{
+                    marginTop: "6px",
+                    fontWeight:
+                      "bold",
+                  }}
+                >
+                  {activeTrend}
+                </div>
+              </div>
+
+              {depths.map(
+                (depth) => (
+                  <div
+                    key={depth.depth}
+                  >
+                    <strong>
+                      {depth.depth} Levels
+                    </strong>
+
+                    <div
+                      className={directionClass(
+                        depth.direction
+                      )}
+                      style={{
+                        marginTop:
+                          "6px",
+                        fontWeight:
+                          "bold",
+                      }}
+                    >
+                      {normalizeDirection(
+                        depth.direction
+                      )}
+                    </div>
+
+                    <div>
+                      Imbalance:{" "}
+                      {formatNumber(
+                        depth.imbalance,
+                        4
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+
+              <div>
+                <strong>
+                  Counter Trend
+                </strong>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontWeight:
+                      "bold",
+                  }}
+                >
+                  {
+                    counterTrendCount
+                  }
+                  /
+                  {
+                    counterTrendRequired
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "12px",
+              }}
+            >
+              Reason:{" "}
+              <strong>
+                {lastAnalysis?.reason ||
+                  "-"}
+              </strong>
+            </div>
+          </div>
+
+          {/* ====================================================
+              MARKET
+              ==================================================== */}
+
+          <div
+            style={{
+              padding: "16px",
+              border:
+                "1px solid #374151",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <h2>
+              Market
+            </h2>
+
+            <div>
+              Symbol:{" "}
+              <strong>
+                {symbol}
+              </strong>
+            </div>
+
+            <div>
+              Current Price:{" "}
+              <strong>
+                {formatNumber(
+                  currentPrice
+                )}
+              </strong>
+            </div>
+
+            <div>
+              Last Update:{" "}
+              <strong>
+                {formatBerlinDateTime(
+                  lastUpdate
+                )}
+              </strong>
+            </div>
+
+            {loading && (
+              <div
+                style={{
+                  marginTop: "8px",
+                }}
+              >
+                Updating market data...
+              </div>
+            )}
+
+            {error && (
+              <div
+                style={{
+                  marginTop: "8px",
+                }}
+              >
+                Error: {error}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

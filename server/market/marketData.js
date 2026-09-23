@@ -1,6 +1,10 @@
+require("dotenv").config();
+
+const crypto = require("crypto");
+
 const WEEX_BASE_URL = "https://api-contract.weex.com";
 
-async function request(path) {
+async function publicRequest(path) {
   const response = await fetch(`${WEEX_BASE_URL}${path}`);
   const text = await response.text();
 
@@ -15,39 +19,71 @@ async function request(path) {
   }
 }
 
-// ---------------------------------------------------------
-// SYMBOLS
-// ---------------------------------------------------------
+async function privateRequest(method, path, body = "") {
+  const apiKey = process.env.WEEX_API_KEY;
+  const secretKey = process.env.WEEX_API_SECRET;
+  const passphrase = process.env.WEEX_API_PASSPHRASE;
 
-async function getTradingSymbols() {
-  return request("/capi/v3/market/apiTradingSymbols");
+  if (!apiKey || !secretKey || !passphrase) {
+    throw new Error("WEEX API credentials are missing from .env");
+  }
+
+  const timestamp = Date.now().toString();
+  const upperMethod = method.toUpperCase();
+
+  const prehash =
+    timestamp +
+    upperMethod +
+    path +
+    body;
+
+  const signature = crypto
+    .createHmac("sha256", secretKey)
+    .update(prehash)
+    .digest("base64");
+
+  const response = await fetch(`${WEEX_BASE_URL}${path}`, {
+    method: upperMethod,
+    headers: {
+      "Content-Type": "application/json",
+      "ACCESS-KEY": apiKey,
+      "ACCESS-SIGN": signature,
+      "ACCESS-TIMESTAMP": timestamp,
+      "ACCESS-PASSPHRASE": passphrase,
+    },
+    body: body || undefined,
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`WEEX HTTP ${response.status}: ${text}`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`WEEX returned invalid JSON: ${text}`);
+  }
 }
 
-// ---------------------------------------------------------
-// EXCHANGE INFO
-// ---------------------------------------------------------
+async function getTradingSymbols() {
+  return publicRequest("/capi/v3/market/apiTradingSymbols");
+}
 
 async function getExchangeInfo(symbol = "") {
   const query = symbol
     ? `?symbol=${encodeURIComponent(symbol)}`
     : "";
 
-  return request(`/capi/v3/market/exchangeInfo${query}`);
+  return publicRequest(`/capi/v3/market/exchangeInfo${query}`);
 }
 
-// ---------------------------------------------------------
-// TICKER
-// ---------------------------------------------------------
-
 async function getTicker(symbol) {
-  return request(
+  return publicRequest(
     `/capi/v3/market/ticker/bookTicker?symbol=${encodeURIComponent(symbol)}`
   );
 }
-
-// ---------------------------------------------------------
-// KLINES / CANDLES
-// ---------------------------------------------------------
 
 async function getKlines(symbol, interval = "15m", limit = 100) {
   const query = new URLSearchParams({
@@ -56,7 +92,14 @@ async function getKlines(symbol, interval = "15m", limit = 100) {
     limit: String(limit),
   });
 
-  return request(`/capi/v3/market/klines?${query.toString()}`);
+  return publicRequest(`/capi/v3/market/klines?${query.toString()}`);
+}
+
+async function getAccountBalance() {
+  return privateRequest(
+    "GET",
+    "/capi/v3/account/balance"
+  );
 }
 
 module.exports = {
@@ -64,4 +107,5 @@ module.exports = {
   getExchangeInfo,
   getTicker,
   getKlines,
+  getAccountBalance,
 };

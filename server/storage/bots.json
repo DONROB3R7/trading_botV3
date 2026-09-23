@@ -1,14 +1,17 @@
 {
   "bots": [
     {
-      "id": "bot_muctotds_hucjj",
+      "id": "bot_mue8wrmf_sq4g7",
       "botType": "ADVANCED",
       "symbol": "POLUSDT",
       "direction": "LONG",
       "entryModel": "ORDERBOOK",
       "status": "STOPPED",
-      "cycleMinutes": 10,
-      "cycleTriggerMinutes": 6,
+      "marginUSDT": 0.5,
+      "leverage": 10,
+      "orderCalculation": null,
+      "cycleMinutes": 2,
+      "cycleTriggerMinutes": 1,
       "orderBookConfig": {
         "trendDepth": 200,
         "entryDepths": [
@@ -25,11 +28,11 @@
       },
       "cycle": {
         "number": 1,
-        "startedAt": "2026-09-22T15:22:22.857Z",
+        "startedAt": "2026-09-23T15:16:14.258Z",
         "scans": 0,
-        "total": 10,
+        "total": 2,
         "triggerMinutes": 0,
-        "requiredTriggerMinutes": 6,
+        "requiredTriggerMinutes": 1,
         "decision": "NEUTRAL",
         "decisionHistory": []
       },
@@ -37,35 +40,63 @@
       "maxEntries": 3,
       "entryCount": 0,
       "entrySignals": [],
+      "positionEntries": [],
       "position": null,
+      "positionState": {
+        "side": null,
+        "entryPrice": null,
+        "averageEntryPrice": null,
+        "contracts": 0,
+        "initialSLPrice": null,
+        "currentSLPrice": null,
+        "tpPrice": null,
+        "tpOrderId": null,
+        "winningGapPrice": null,
+        "winningGapPercent": null,
+        "tradeNumber": 0,
+        "isWinner": false,
+        "lastExitPrice": null,
+        "lastExitReason": null,
+        "lastPositionSyncAt": null,
+        "lastPositionSyncError": null
+      },
       "tpPercent": 1,
       "slPercent": 0.8,
+      "dynamicSlPercent": 3,
+      "tpPositionSyncDelayMs": 10000,
+      "tpPositionSyncDelaySeconds": 10,
+      "tpSyncInProgress": false,
+      "tpSyncNumber": 0,
       "killZone": {
-        "enabled": true,
-        "low": 0.104,
+        "enabled": false,
+        "low": null,
         "high": null
       },
       "triggerLine": {
         "enabled": true,
-        "price": 0.10583,
+        "price": 0.1026,
         "armed": false,
         "triggeredAt": null,
         "initialized": false,
         "waitingForReset": false,
         "previousPrice": null,
-        "initializing": true,
-        "initializedAt": null
+        "initializing": false,
+        "initializedAt": null,
+        "checkIntervalMs": 1000
       },
       "lastScanAt": null,
       "lastDecision": "NEUTRAL",
       "lastPrice": null,
       "lastAnalysis": null,
       "logs": [
-        "[2026-09-22T15:22:22.857Z] Started | POLUSDT | LONG",
-        "[2026-09-22T15:22:22.857Z] Cycle: 10 minutes",
-        "[2026-09-22T15:22:22.857Z] Trigger Minutes: 6",
-        "[2026-09-22T15:22:22.857Z] Max Entries: 3",
-        "[2026-09-22T15:22:22.859Z] Trigger Line: ENABLED | Getting one startup market price..."
+        "[2026-09-23T15:16:14.258Z] Started | POLUSDT | LONG",
+        "[2026-09-23T15:16:14.258Z] Cycle: 2 minutes",
+        "[2026-09-23T15:16:14.258Z] Trigger Minutes: 1",
+        "[2026-09-23T15:16:14.258Z] Max Entries: 3",
+        "[2026-09-23T15:16:14.258Z] Position Settings | margin=0.5 USDT | leverage=10x",
+        "[2026-09-23T15:16:14.258Z] TP/SL Settings | TP=1% | Initial SL=0.8% | Dynamic SL=3%",
+        "[2026-09-23T15:16:14.258Z] TP Position Sync Delay=10.0s",
+        "[2026-09-23T15:16:14.258Z] WEEX Execution | Authenticated=YES"
       ]
     }
   ]
