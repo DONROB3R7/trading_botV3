@@ -1,0 +1,420 @@
+/* ============================================================
+   CREATE BOT FORM
+   ============================================================ */
+
+.create-bot-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+
+.form-section {
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.form-section-main {
+  background: #f8fafc;
+}
+
+.form-section-header {
+  margin-bottom: 20px;
+}
+
+.form-section-header h3,
+.form-section-header h4 {
+  margin: 0 0 6px;
+  color: #111827;
+}
+
+.form-section-header h3 {
+  font-size: 19px;
+}
+
+.form-section-header h4 {
+  font-size: 17px;
+}
+
+.form-section-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+
+/* ============================================================
+   BOT TYPE
+   ============================================================ */
+
+.bot-type-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.bot-type-button {
+  padding: 14px 18px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #374151;
+
+  font-size: 15px;
+  font-weight: 700;
+
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.bot-type-button:hover {
+  border-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.bot-type-button.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+
+/* ============================================================
+   FORM GRID
+   ============================================================ */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    2,
+    minmax(0, 1fr)
+  );
+  gap: 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  min-height: 42px;
+
+  padding: 9px 11px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #111827;
+
+  font-size: 14px;
+
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  border-color: #2563eb;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(37, 99, 235, 0.1);
+}
+
+.form-field input:disabled,
+.form-field select:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   CHECKBOX
+   ============================================================ */
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.checkbox-field input {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.secondary-button {
+  margin-top: 18px;
+
+  min-height: 42px;
+  padding: 9px 16px;
+
+  border: 1px solid #2563eb;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #1d4ed8;
+
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.secondary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.create-bot-submit {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.create-button {
+  min-width: 180px;
+  min-height: 46px;
+
+  padding: 10px 20px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #2563eb;
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.create-button:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.create-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   WEEX POSITION RESULT
+   ============================================================ */
+
+.position-result {
+  margin-top: 18px;
+
+  padding: 16px;
+
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+
+  background: #eff6ff;
+}
+
+.position-result > strong {
+  display: block;
+  margin-bottom: 14px;
+
+  color: #1e3a8a;
+}
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    3,
+    minmax(0, 1fr)
+  );
+  gap: 10px;
+}
+
+.position-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  padding: 10px;
+
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.position-grid strong {
+  color: #111827;
+  font-size: 13px;
+}
+
+
+/* ============================================================
+   ERRORS / WARNINGS / INFO
+   ============================================================ */
+
+.form-error {
+  padding: 12px 14px;
+
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+
+  background: #fef2f2;
+  color: #b91c1c;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.position-sync-error {
+  margin-top: 12px;
+
+  padding: 10px;
+
+  border-radius: 7px;
+
+  background: #fef2f2;
+  color: #b91c1c;
+
+  font-size: 13px;
+}
+
+.info-box {
+  padding: 12px 14px;
+
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+
+  background: #eff6ff;
+  color: #1e40af;
+
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.warning-box {
+  padding: 12px 14px;
+
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+
+  background: #fff7ed;
+  color: #c2410c;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+
+/* ============================================================
+   PROTECTION SECTIONS
+   ============================================================ */
+
+.form-section-protection {
+  border-color: #bfdbfe;
+}
+
+.form-section-danger {
+  border-color: #fed7aa;
+}
+
+.protection-fields {
+  margin-top: 18px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 800px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .position-grid {
+    grid-template-columns: repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  }
+}
+
+@media (max-width: 600px) {
+  .form-section {
+    padding: 16px;
+  }
+
+  .bot-type-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .position-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .create-bot-submit {
+    justify-content: stretch;
+  }
+
+  .create-button {
+    width: 100%;
+  }
+}

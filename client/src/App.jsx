@@ -16,57 +16,57 @@ import Chart from "./pages/Chart";
 import OrderBook from "./pages/OrderBook";
 import Settings from "./pages/Settings";
 
+import "./pages/App.css";
+
 export default function App() {
-  const [
-    currentPage,
-    setCurrentPage,
-  ] = useState("dashboard");
+  const [currentPage, setCurrentPage] =
+    useState("dashboard");
 
-  const [
-    bots,
-    setBots,
-  ] = useState([]);
+  const [bots, setBots] = useState([]);
 
-  const [
-    symbols,
-    setSymbols,
-  ] = useState([]);
+  const [symbols, setSymbols] =
+    useState([]);
 
-  const [
-    backendConnected,
-    setBackendConnected,
-  ] = useState(false);
+  const [backendConnected, setBackendConnected] =
+    useState(false);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const [error, setError] =
+    useState("");
 
   // =========================================================
   // LOAD BOTS
   // =========================================================
 
-async function loadBots() {
-  try {
-    const result = await getBots();
+  async function loadBots() {
+    try {
+      const result = await getBots();
 
-    console.log("BOTS FROM API:", result);
-    console.log("BOTS ARRAY:", result.data);
+      console.log(
+        "BOTS FROM API:",
+        result
+      );
 
-    setBots(Array.isArray(result.data) ? result.data : []);
+      console.log(
+        "BOTS ARRAY:",
+        result.data
+      );
 
-    setBackendConnected(true);
-    setError("");
-  } catch (err) {
-    setBackendConnected(false);
-    setError(err.message);
+      setBots(
+        Array.isArray(result.data)
+          ? result.data
+          : []
+      );
+
+      setBackendConnected(true);
+      setError("");
+    } catch (err) {
+      setBackendConnected(false);
+      setError(err.message);
+    }
   }
-}
 
   // =========================================================
   // LOAD SYMBOLS
@@ -99,22 +99,15 @@ async function loadBots() {
       try {
         await getHealth();
 
-        setBackendConnected(
-          true
-        );
+        setBackendConnected(true);
 
         await Promise.all([
           loadBots(),
           loadSymbols(),
         ]);
       } catch (err) {
-        setBackendConnected(
-          false
-        );
-
-        setError(
-          err.message
-        );
+        setBackendConnected(false);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -143,302 +136,279 @@ async function loadBots() {
   // =========================================================
 
   function renderPage() {
-    if (
-      currentPage ===
-      "dashboard"
-    ) {
-      return (
-        <Dashboard
-          bots={bots}
-        />
-      );
+    if (currentPage === "dashboard") {
+      return <Dashboard bots={bots} />;
     }
 
-    if (
-      currentPage ===
-      "bots"
-    ) {
+    if (currentPage === "bots") {
       return (
         <BotManagement
           bots={bots}
           symbols={symbols}
-          reloadBots={
-            loadBots
-          }
+          reloadBots={loadBots}
         />
       );
     }
 
-    if (
-      currentPage ===
-      "stats"
-    ) {
-      return (
-        <TradingStats
-          bots={bots}
-        />
-      );
+    if (currentPage === "stats") {
+      return <TradingStats bots={bots} />;
     }
 
-    if (
-      currentPage ===
-      "chart"
-    ) {
+    if (currentPage === "chart") {
       return <Chart />;
     }
 
-    if (
-      currentPage ===
-      "orderbook"
-    ) {
+    if (currentPage === "orderbook") {
       return <OrderBook />;
     }
 
-    if (
-      currentPage ===
-      "settings"
-    ) {
+    if (currentPage === "settings") {
       return <Settings />;
     }
 
-    return (
-      <Dashboard
-        bots={bots}
-      />
-    );
+    return <Dashboard bots={bots} />;
   }
+
+  // =========================================================
+  // LOADING
+  // =========================================================
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: 30,
-        }}
-      >
-        Loading WEEX Bot Lab...
+      <div className="app-loading">
+
+        <div className="loading-jungle">
+
+          <span className="loading-monkey">
+            🐒
+          </span>
+
+          <span className="loading-banana">
+            🍌
+          </span>
+
+          <span className="loading-rock">
+            🪨
+          </span>
+
+          <span className="loading-gorilla">
+            🦍
+          </span>
+
+        </div>
+
+        <div className="loading-title">
+          Caveman is waking the bots...
+        </div>
+
+        <div className="loading-subtitle">
+          Please do not feed the algorithm.
+        </div>
+
       </div>
     );
   }
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        fontFamily:
-          "Arial, sans-serif",
-      }}
-    >
-      {/* =====================================================
-          TOP BAR
-      ====================================================== */}
+  // =========================================================
+  // APP
+  // =========================================================
 
-      <header
-        style={{
-          padding:
-            "15px 20px",
-          borderBottom:
-            "1px solid #ddd",
-          display: "flex",
-          justifyContent:
-            "space-between",
-          alignItems: "center",
-          gap: 15,
-        }}
-      >
-        <div>
-          <strong>
-            🦍 WEEX BOT LAB
-          </strong>
+  return (
+    <div className="app">
+
+      {/* ===================================================
+          HEADER
+      ==================================================== */}
+
+      <header className="app-header">
+
+        <div className="app-brand">
+
+          <div className="brand-monkey">
+            🦍
+          </div>
+
+          <div className="brand-text">
+
+            <strong>
+              WEEX BOT LAB
+            </strong>
+
+            <span>
+              🪨 Caveman Trading Department 🍌
+            </span>
+
+          </div>
+
         </div>
 
-        <div
-          style={{
-            fontSize: 13,
-          }}
-        >
-          Backend:{" "}
-          <strong
-            style={{
-              color:
-                backendConnected
-                  ? "green"
-                  : "red",
-            }}
+        <div className="backend-status">
+
+          <span>
+            Backend:
+          </span>
+
+          <span
+            className={
+              backendConnected
+                ? "status-online"
+                : "status-offline"
+            }
           >
+            ●{" "}
             {backendConnected
               ? "CONNECTED"
               : "OFFLINE"}
-          </strong>
+          </span>
+
         </div>
+
       </header>
 
-      {/* =====================================================
-          APP LAYOUT
-      ====================================================== */}
+      {/* ===================================================
+          NAVIGATION
+      ==================================================== */}
 
-      <div
-        style={{
-          display: "flex",
-          minHeight:
-            "calc(100vh - 60px)",
-        }}
-      >
-        {/* ===================================================
-            NAVIGATION
-        ==================================================== */}
+      <nav className="app-nav">
 
-        <aside
-          style={{
-            width: 210,
-            borderRight:
-              "1px solid #ddd",
-            padding: 15,
-            flexShrink: 0,
-          }}
+        <button
+          className={
+            currentPage === "dashboard"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("dashboard")
+          }
         >
-          <div
-            style={{
-              fontSize: 12,
-              color: "#777",
-              marginBottom: 10,
-            }}
-          >
-            NAVIGATION
-          </div>
+          🏠 Dashboard
+        </button>
 
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "dashboard"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            🏠 Dashboard
-          </button>
-
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "bots"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            🤖 Bot Management
-          </button>
-
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "stats"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            📊 Trading Stats
-          </button>
-
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "chart"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            📈 Chart
-          </button>
-
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "orderbook"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            📖 Order Book
-          </button>
-
-          <button
-            onClick={() =>
-              setCurrentPage(
-                "settings"
-              )
-            }
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 10,
-              marginBottom: 6,
-              textAlign: "left",
-            }}
-          >
-            ⚙️ Settings
-          </button>
-        </aside>
-
-        {/* ===================================================
-            MAIN PAGE
-        ==================================================== */}
-
-        <main
-          style={{
-            flex: 1,
-            padding: 25,
-            minWidth: 0,
-          }}
+        <button
+          className={
+            currentPage === "bots"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("bots")
+          }
         >
+          🤖 Bot Management
+        </button>
+
+        <button
+          className={
+            currentPage === "stats"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("stats")
+          }
+        >
+          📊 Trading Stats
+        </button>
+
+        <button
+          className={
+            currentPage === "chart"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("chart")
+          }
+        >
+          📈 Chart
+        </button>
+
+        <button
+          className={
+            currentPage === "orderbook"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("orderbook")
+          }
+        >
+          📖 Order Book
+        </button>
+
+        <button
+          className={
+            currentPage === "settings"
+              ? "nav-button active"
+              : "nav-button"
+          }
+          onClick={() =>
+            setCurrentPage("settings")
+          }
+        >
+          ⚙️ Settings
+        </button>
+
+      </nav>
+
+      {/* ===================================================
+          MAIN CENTER AREA
+      ==================================================== */}
+
+      <div className="app-content">
+
+        <main className="app-main">
+
           {error && (
-            <div
-              style={{
-                padding: 12,
-                marginBottom: 20,
-                border:
-                  "1px solid #e00",
-                borderRadius: 8,
-                color: "#b00000",
-              }}
-            >
-              Backend error:{" "}
+            <div className="app-error">
+              <strong>
+                Backend error:
+              </strong>{" "}
               {error}
             </div>
           )}
 
           {renderPage()}
+
         </main>
+
       </div>
+
+      {/* ===================================================
+          CAVEMAN FOOTER
+      ==================================================== */}
+
+      <footer className="caveman-footer">
+
+        <div className="footer-jungle">
+
+          <span>🌴</span>
+          <span>🐒</span>
+          <span>🍌</span>
+
+          <span className="footer-caveman">
+            🦍
+          </span>
+
+          <span>🍌</span>
+          <span>🐒</span>
+          <span>🌴</span>
+
+        </div>
+
+        <div className="footer-text">
+          Caveman says:
+          <strong>
+            {" "}code first, panic later.
+          </strong>
+        </div>
+
+        <div className="footer-rock">
+          🪨
+        </div>
+
+      </footer>
+
     </div>
   );
 }

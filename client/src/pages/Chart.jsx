@@ -19,8 +19,12 @@ import {
   getBots,
 } from "../services/api";
 
+import "./Chart.css";
+
 const BERLIN_TIME_ZONE = "Europe/Berlin";
 const REFRESH_MS = 5000;
+
+
 
 // ============================================================
 // HELPERS
@@ -277,10 +281,6 @@ function findNearestCandleTime(
 
 // ============================================================
 // GENERIC VALUE HELPERS
-//
-// AdvancedBot has changed during development. These helpers
-// intentionally support several possible state names so the
-// chart does not break while the backend evolves.
 // ============================================================
 
 function firstFinite(...values) {
@@ -469,10 +469,6 @@ export default function Chart() {
       },
       []
     );
-
-  // ============================================================
-  // BOT REFRESH
-  // ============================================================
 
   useEffect(() => {
     loadBots();
@@ -953,28 +949,28 @@ export default function Chart() {
 
             background: {
               type: "solid",
-              color: "#111827",
+              color: "#2f3136",
             },
           },
 
           grid: {
             vertLines: {
-              color: "#1f2937",
+              color: "#3b3f46",
             },
 
             horzLines: {
-              color: "#1f2937",
+              color: "#3b3f46",
             },
           },
 
           rightPriceScale: {
             borderColor:
-              "#374151",
+              "#454a52",
           },
 
           timeScale: {
             borderColor:
-              "#374151",
+              "#454a52",
 
             timeVisible: true,
 
@@ -1167,11 +1163,6 @@ export default function Chart() {
 
   // ============================================================
   // PRICE LINES
-  //
-  // Trigger
-  // Entry
-  // Stop Loss
-  // Take Profit
   // ============================================================
 
   useEffect(() => {
@@ -1196,10 +1187,6 @@ export default function Chart() {
     }
 
     priceLinesRef.current = [];
-
-    // ----------------------------------------------------------
-    // TRIGGER
-    // ----------------------------------------------------------
 
     if (
       triggerEnabled &&
@@ -1231,10 +1218,6 @@ export default function Chart() {
       );
     }
 
-    // ----------------------------------------------------------
-    // ENTRY
-    // ----------------------------------------------------------
-
     if (
       positionExists &&
       Number.isFinite(
@@ -1261,10 +1244,6 @@ export default function Chart() {
         line
       );
     }
-
-    // ----------------------------------------------------------
-    // STOP LOSS
-    // ----------------------------------------------------------
 
     if (
       Number.isFinite(
@@ -1297,10 +1276,6 @@ export default function Chart() {
         line
       );
     }
-
-    // ----------------------------------------------------------
-    // TAKE PROFIT
-    // ----------------------------------------------------------
 
     if (
       Number.isFinite(
@@ -1351,11 +1326,7 @@ export default function Chart() {
   // ============================================================
 
   return (
-    <div
-      style={{
-        padding: "16px",
-      }}
-    >
+    <div className="chart-page">
       <h1>
         AdvancedBot Control Chart
       </h1>
@@ -1364,36 +1335,18 @@ export default function Chart() {
           BOT SELECTOR
           ====================================================== */}
 
-      <div
-        style={{
-          padding: "16px",
-          border:
-            "1px solid #374151",
-          borderRadius: "8px",
-          marginBottom: "16px",
-        }}
-      >
-        <h2>
-          Bot
-        </h2>
+      <div className="chart-panel">
+        <div className="chart-panel-header">
+          <h2>Bot</h2>
 
-        {advancedBots.length === 0 ? (
-          <div>
-            No Advanced Bots found.
-          </div>
-        ) : (
-          <>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                alignItems:
-                  "center",
-                flexWrap:
-                  "wrap",
-              }}
-            >
+          {advancedBots.length === 0 ? (
+            <div className="chart-muted">
+              No Advanced Bots found.
+            </div>
+          ) : (
+            <div className="chart-controls">
               <select
+                className="chart-select"
                 value={
                   selectedBotId ||
                   String(
@@ -1422,14 +1375,15 @@ export default function Chart() {
               </select>
 
               <button
+                className="chart-button"
                 type="button"
                 onClick={loadBots}
               >
                 Refresh
               </button>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {selectedBot && (
@@ -1438,58 +1392,23 @@ export default function Chart() {
               LIVE STATUS
               ==================================================== */}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "10px",
-              marginBottom: "16px",
-            }}
-          >
-            <div
-              style={{
-                padding: "14px",
-                border:
-                  "1px solid #374151",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>
+          <div className="chart-grid chart-grid-status">
+            <div className="chart-card">
+              <div className="chart-card-title">
                 SYMBOL
-              </strong>
+              </div>
 
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight:
-                    "bold",
-                  marginTop: "6px",
-                }}
-              >
+              <div className="chart-card-value chart-card-value-large">
                 {symbol}
               </div>
             </div>
 
-            <div
-              style={{
-                padding: "14px",
-                border:
-                  "1px solid #374151",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>
+            <div className="chart-card">
+              <div className="chart-card-title">
                 BOT STATUS
-              </strong>
+              </div>
 
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontWeight:
-                    "bold",
-                }}
-              >
+              <div className="chart-card-value">
                 {String(
                   botState.status ||
                     executionStatus ||
@@ -1498,51 +1417,26 @@ export default function Chart() {
               </div>
             </div>
 
-            <div
-              style={{
-                padding: "14px",
-                border:
-                  "1px solid #374151",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>
+            <div className="chart-card">
+              <div className="chart-card-title">
                 DIRECTION
-              </strong>
+              </div>
 
               <div
-                className={directionClass(
+                className={`chart-card-value ${directionClass(
                   botDirection
-                )}
-                style={{
-                  marginTop: "6px",
-                  fontWeight:
-                    "bold",
-                }}
+                )}`}
               >
                 {botDirection}
               </div>
             </div>
 
-            <div
-              style={{
-                padding: "14px",
-                border:
-                  "1px solid #374151",
-                borderRadius: "8px",
-              }}
-            >
-              <strong>
+            <div className="chart-card">
+              <div className="chart-card-title">
                 CURRENT PRICE
-              </strong>
+              </div>
 
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontWeight:
-                    "bold",
-                }}
-              >
+              <div className="chart-card-value">
                 {formatNumber(
                   currentPrice
                 )}
@@ -1554,50 +1448,24 @@ export default function Chart() {
               TRADE LIFECYCLE
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Trade Lifecycle
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div
-                style={{
-                  padding: "12px",
-                  border:
-                    "1px solid #374151",
-                  borderRadius: "6px",
-                }}
-              >
-                <strong>
+            <div className="chart-grid chart-grid-lifecycle">
+              <div className="chart-card">
+                <div className="chart-card-title">
                   1. TRIGGER
-                </strong>
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+                <div className="chart-card-value">
                   {triggerEnabled
                     ? triggerStatus
                     : "OFF"}
                 </div>
 
-                <div>
+                <div className="chart-muted">
                   Price:{" "}
                   {formatNumber(
                     triggerPrice
@@ -1605,23 +1473,12 @@ export default function Chart() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: "12px",
-                  border:
-                    "1px solid #374151",
-                  borderRadius: "6px",
-                }}
-              >
-                <strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
                   2. POSITION
-                </strong>
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+                <div className="chart-card-value">
                   {positionExists
                     ? "OPEN"
                     : "FLAT"}
@@ -1629,12 +1486,12 @@ export default function Chart() {
 
                 {positionExists && (
                   <>
-                    <div>
+                    <div className="chart-muted">
                       Side:{" "}
                       {positionSide}
                     </div>
 
-                    <div>
+                    <div className="chart-muted">
                       Entry:{" "}
                       {formatNumber(
                         entryPrice
@@ -1644,29 +1501,18 @@ export default function Chart() {
                 )}
               </div>
 
-              <div
-                style={{
-                  padding: "12px",
-                  border:
-                    "1px solid #374151",
-                  borderRadius: "6px",
-                }}
-              >
-                <strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
                   3. STOP LOSS
-                </strong>
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+                <div className="chart-card-value">
                   {formatNumber(
                     stopLossPrice
                   )}
                 </div>
 
-                <div>
+                <div className="chart-muted">
                   Distance:{" "}
                   {formatPercent(
                     slPercent
@@ -1674,29 +1520,18 @@ export default function Chart() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: "12px",
-                  border:
-                    "1px solid #374151",
-                  borderRadius: "6px",
-                }}
-              >
-                <strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
                   4. TAKE PROFIT
-                </strong>
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+                <div className="chart-card-value">
                   {formatNumber(
                     takeProfitPrice
                   )}
                 </div>
 
-                <div>
+                <div className="chart-muted">
                   Distance:{" "}
                   {formatPercent(
                     tpPercent
@@ -1710,44 +1545,19 @@ export default function Chart() {
               PRICE CHART
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-                alignItems:
-                  "center",
-                flexWrap:
-                  "wrap",
-                gap: "12px",
-              }}
-            >
+          <div className="chart-panel">
+            <div className="chart-panel-header">
               <h2>
                 Price Chart
               </h2>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  alignItems:
-                    "center",
-                }}
-              >
-                <label>
+              <div className="chart-controls">
+                <label className="chart-label">
                   Timeframe
                 </label>
 
                 <select
+                  className="chart-select"
                   value={timeframe}
                   onChange={(event) =>
                     setTimeframe(
@@ -1777,6 +1587,7 @@ export default function Chart() {
                 </select>
 
                 <button
+                  className="chart-button"
                   type="button"
                   onClick={
                     loadMarketData
@@ -1787,33 +1598,30 @@ export default function Chart() {
               </div>
             </div>
 
-            <div
-              style={{
-                marginTop: "8px",
-                fontSize: "13px",
-                opacity: 0.8,
-              }}
-            >
-              Blue = Trigger | Orange =
-              Entry | Red = SL | Green =
-              TP
+            <div className="chart-legend">
+              <span className="legend-trigger">
+                Blue = Trigger
+              </span>{" "}
+              |{" "}
+              <span className="legend-entry">
+                Orange = Entry
+              </span>{" "}
+              |{" "}
+              <span className="legend-sl">
+                Red = SL
+              </span>{" "}
+              |{" "}
+              <span className="legend-tp">
+                Green = TP
+              </span>
             </div>
 
-            <div
-              style={{
-                width: "100%",
-                height: "600px",
-                marginTop: "12px",
-              }}
-            >
+            <div className="chart-wrapper">
               <div
                 ref={
                   chartContainerRef
                 }
-                style={{
-                  width: "100%",
-                  height: "600px",
-                }}
+                className="chart-container"
               />
             </div>
           </div>
@@ -1822,73 +1630,63 @@ export default function Chart() {
               TRIGGER DETAILS
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Trigger Line
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <strong>
-                  Enabled
-                </strong>
-                <br />
-                {triggerEnabled
-                  ? "YES"
-                  : "NO"}
+            <div className="chart-grid chart-grid-details">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  ENABLED
+                </div>
+                <div className="chart-card-value">
+                  {triggerEnabled
+                    ? "YES"
+                    : "NO"}
+                </div>
               </div>
 
-              <div>
-                <strong>
-                  Direction
-                </strong>
-                <br />
-                {botDirection}
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  DIRECTION
+                </div>
+                <div className="chart-card-value">
+                  {botDirection}
+                </div>
               </div>
 
-              <div>
-                <strong>
-                  Trigger Price
-                </strong>
-                <br />
-                {formatNumber(
-                  triggerPrice
-                )}
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  TRIGGER PRICE
+                </div>
+                <div className="chart-card-value">
+                  {formatNumber(
+                    triggerPrice
+                  )}
+                </div>
               </div>
 
-              <div>
-                <strong>
-                  Status
-                </strong>
-                <br />
-                {triggerEnabled
-                  ? triggerStatus
-                  : "OFF"}
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  STATUS
+                </div>
+                <div className="chart-card-value">
+                  {triggerEnabled
+                    ? triggerStatus
+                    : "OFF"}
+                </div>
               </div>
 
-              <div>
-                <strong>
-                  Triggered At
-                </strong>
-                <br />
-                {formatBerlinDateTime(
-                  triggerLine.triggeredAt
-                )}
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  TRIGGERED AT
+                </div>
+                <div className="chart-card-value">
+                  {formatBerlinDateTime(
+                    triggerLine.triggeredAt
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1897,252 +1695,211 @@ export default function Chart() {
               POSITION / EXECUTION
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Position & Execution
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <strong>
-                  Position
-                </strong>
-                <br />
-                {positionExists
-                  ? "OPEN"
-                  : "FLAT"}
-              </div>
-
-              <div>
-                <strong>
-                  Side
-                </strong>
-                <br />
-                {positionSide}
-              </div>
-
-              <div>
-                <strong>
-                  Entry
-                </strong>
-                <br />
-                {formatNumber(
-                  entryPrice
-                )}
-              </div>
-
-              <div>
-                <strong>
-                  Contracts
-                </strong>
-                <br />
-                {Number.isFinite(
-                  positionContracts
-                )
-                  ? positionContracts
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Contract Value
-                </strong>
-                <br />
-                {Number.isFinite(
-                  contractValue
-                )
-                  ? `${contractValue} USDT`
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Notional
-                </strong>
-                <br />
-                {Number.isFinite(
-                  positionNotional
-                )
-                  ? `${positionNotional.toFixed(
-                      4
-                    )} USDT`
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Leverage
-                </strong>
-                <br />
-                {Number.isFinite(
-                  leverage
-                )
-                  ? `${leverage}x`
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Configured Margin
-                </strong>
-                <br />
-                {Number.isFinite(
-                  configuredMargin
-                )
-                  ? `${configuredMargin.toFixed(
-                      4
-                    )} USDT`
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Estimated Margin
-                </strong>
-                <br />
-                {Number.isFinite(
-                  estimatedMargin
-                )
-                  ? `${estimatedMargin.toFixed(
-                      4
-                    )} USDT`
-                  : "-"}
-              </div>
-
-              <div>
-                <strong>
-                  Execution
-                </strong>
-                <br />
-                {executionStatus}
-              </div>
-
-              <div>
-                <strong>
-                  Order ID
-                </strong>
-                <br />
-                {lastOrderId || "-"}
-              </div>
-            </div>
-          </div>
-
-          {/* ====================================================
-              SL / TP
-              ==================================================== */}
-
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
-            <h2>
-              Risk Management
-            </h2>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <strong>
-                  Stop Loss
-                </strong>
-
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontSize: "18px",
-                    fontWeight:
-                      "bold",
-                  }}
-                >
-                  {formatNumber(
-                    stopLossPrice
-                  )}
+            <div className="chart-grid chart-grid-details">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  POSITION
                 </div>
-
-                <div>
-                  {formatPercent(
-                    slPercent
-                  )}
+                <div className="chart-card-value">
+                  {positionExists
+                    ? "OPEN"
+                    : "FLAT"}
                 </div>
               </div>
 
-              <div>
-                <strong>
-                  Take Profit
-                </strong>
-
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontSize: "18px",
-                    fontWeight:
-                      "bold",
-                  }}
-                >
-                  {formatNumber(
-                    takeProfitPrice
-                  )}
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  SIDE
                 </div>
-
-                <div>
-                  {formatPercent(
-                    tpPercent
-                  )}
+                <div className="chart-card-value">
+                  {positionSide}
                 </div>
               </div>
 
-              <div>
-                <strong>
-                  Entry Price
-                </strong>
-
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  ENTRY
+                </div>
+                <div className="chart-card-value">
                   {formatNumber(
                     entryPrice
                   )}
                 </div>
               </div>
 
-              <div>
-                <strong>
-                  Current Price
-                </strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  CONTRACTS
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    positionContracts
+                  )
+                    ? positionContracts
+                    : "-"}
+                </div>
+              </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  CONTRACT VALUE
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    contractValue
+                  )
+                    ? `${contractValue} USDT`
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  NOTIONAL
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    positionNotional
+                  )
+                    ? `${positionNotional.toFixed(
+                        4
+                      )} USDT`
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  LEVERAGE
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    leverage
+                  )
+                    ? `${leverage}x`
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  CONFIGURED MARGIN
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    configuredMargin
+                  )
+                    ? `${configuredMargin.toFixed(
+                        4
+                      )} USDT`
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  ESTIMATED MARGIN
+                </div>
+                <div className="chart-card-value">
+                  {Number.isFinite(
+                    estimatedMargin
+                  )
+                    ? `${estimatedMargin.toFixed(
+                        4
+                      )} USDT`
+                    : "-"}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  EXECUTION
+                </div>
+                <div className="chart-card-value">
+                  {executionStatus}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  ORDER ID
+                </div>
+                <div className="chart-card-value">
+                  {lastOrderId || "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ====================================================
+              RISK MANAGEMENT
+              ==================================================== */}
+
+          <div className="chart-panel">
+            <h2>
+              Risk Management
+            </h2>
+
+            <div className="chart-grid chart-grid-details">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  STOP LOSS
+                </div>
+
+                <div className="chart-card-value chart-card-value-large">
+                  {formatNumber(
+                    stopLossPrice
+                  )}
+                </div>
+
+                <div className="chart-muted">
+                  {formatPercent(
+                    slPercent
+                  )}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  TAKE PROFIT
+                </div>
+
+                <div className="chart-card-value chart-card-value-large">
+                  {formatNumber(
+                    takeProfitPrice
+                  )}
+                </div>
+
+                <div className="chart-muted">
+                  {formatPercent(
+                    tpPercent
+                  )}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  ENTRY PRICE
+                </div>
+
+                <div className="chart-card-value">
+                  {formatNumber(
+                    entryPrice
+                  )}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  CURRENT PRICE
+                </div>
+
+                <div className="chart-card-value">
                   {formatNumber(
                     currentPrice
                   )}
@@ -2155,73 +1912,42 @@ export default function Chart() {
               KILLBOT
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Killbot / Safety
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <strong>
-                  Killbot
-                </strong>
+            <div className="chart-grid chart-grid-details">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  KILLBOT
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontWeight:
-                      "bold",
-                  }}
-                >
+                <div className="chart-card-value">
                   {killBotEnabled
                     ? "ENABLED"
                     : "DISABLED"}
                 </div>
               </div>
 
-              <div>
-                <strong>
-                  Killbot State
-                </strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  KILLBOT STATE
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontWeight:
-                      "bold",
-                  }}
-                >
+                <div className="chart-card-value">
                   {killBotActive
                     ? "ACTIVE"
                     : "INACTIVE"}
                 </div>
               </div>
 
-              <div>
-                <strong>
-                  Reason
-                </strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  REASON
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                  }}
-                >
+                <div className="chart-card-value">
                   {killReason || "-"}
                 </div>
               </div>
@@ -2232,41 +1958,21 @@ export default function Chart() {
               ORDER BOOK DIAGNOSTICS
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Order-Flow Diagnostics
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <strong>
-                  200 Trend
-                </strong>
+            <div className="chart-grid chart-grid-orderflow">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  200 TREND
+                </div>
 
                 <div
-                  className={directionClass(
+                  className={`chart-card-value ${directionClass(
                     activeTrend
-                  )}
-                  style={{
-                    marginTop: "6px",
-                    fontWeight:
-                      "bold",
-                  }}
+                  )}`}
                 >
                   {activeTrend}
                 </div>
@@ -2275,29 +1981,24 @@ export default function Chart() {
               {depths.map(
                 (depth) => (
                   <div
+                    className="chart-card"
                     key={depth.depth}
                   >
-                    <strong>
-                      {depth.depth} Levels
-                    </strong>
+                    <div className="chart-card-title">
+                      {depth.depth} LEVELS
+                    </div>
 
                     <div
-                      className={directionClass(
+                      className={`chart-card-value ${directionClass(
                         depth.direction
-                      )}
-                      style={{
-                        marginTop:
-                          "6px",
-                        fontWeight:
-                          "bold",
-                      }}
+                      )}`}
                     >
                       {normalizeDirection(
                         depth.direction
                       )}
                     </div>
 
-                    <div>
+                    <div className="chart-muted">
                       Imbalance:{" "}
                       {formatNumber(
                         depth.imbalance,
@@ -2308,39 +2009,24 @@ export default function Chart() {
                 )
               )}
 
-              <div>
-                <strong>
-                  Counter Trend
-                </strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  COUNTER TREND
+                </div>
 
-                <div
-                  style={{
-                    marginTop: "6px",
-                    fontWeight:
-                      "bold",
-                  }}
-                >
-                  {
-                    counterTrendCount
-                  }
-                  /
-                  {
-                    counterTrendRequired
-                  }
+                <div className="chart-card-value">
+                  {counterTrendCount}/
+                  {counterTrendRequired}
                 </div>
               </div>
             </div>
 
-            <div
-              style={{
-                marginTop: "12px",
-              }}
-            >
-              Reason:{" "}
+            <div className="orderflow-reason">
               <strong>
-                {lastAnalysis?.reason ||
-                  "-"}
-              </strong>
+                Reason:
+              </strong>{" "}
+              {lastAnalysis?.reason ||
+                "-"}
             </div>
           </div>
 
@@ -2348,60 +2034,55 @@ export default function Chart() {
               MARKET
               ==================================================== */}
 
-          <div
-            style={{
-              padding: "16px",
-              border:
-                "1px solid #374151",
-              borderRadius: "8px",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="chart-panel">
             <h2>
               Market
             </h2>
 
-            <div>
-              Symbol:{" "}
-              <strong>
-                {symbol}
-              </strong>
-            </div>
+            <div className="chart-grid chart-grid-details">
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  SYMBOL
+                </div>
 
-            <div>
-              Current Price:{" "}
-              <strong>
-                {formatNumber(
-                  currentPrice
-                )}
-              </strong>
-            </div>
+                <div className="chart-card-value">
+                  {symbol}
+                </div>
+              </div>
 
-            <div>
-              Last Update:{" "}
-              <strong>
-                {formatBerlinDateTime(
-                  lastUpdate
-                )}
-              </strong>
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  CURRENT PRICE
+                </div>
+
+                <div className="chart-card-value">
+                  {formatNumber(
+                    currentPrice
+                  )}
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <div className="chart-card-title">
+                  LAST UPDATE
+                </div>
+
+                <div className="chart-card-value">
+                  {formatBerlinDateTime(
+                    lastUpdate
+                  )}
+                </div>
+              </div>
             </div>
 
             {loading && (
-              <div
-                style={{
-                  marginTop: "8px",
-                }}
-              >
+              <div className="chart-loading">
                 Updating market data...
               </div>
             )}
 
             {error && (
-              <div
-                style={{
-                  marginTop: "8px",
-                }}
-              >
+              <div className="chart-error">
                 Error: {error}
               </div>
             )}
@@ -2411,3 +2092,4 @@ export default function Chart() {
     </div>
   );
 }
+

@@ -7,6 +7,8 @@ import {
   getWeexPosition,
 } from "../../services/api";
 
+import "./CreateBotForm.css";
+
 function CreateBotForm({ onCreated }) {
   const [botType, setBotType] =
     useState("SIMPLE");
@@ -64,10 +66,6 @@ function CreateBotForm({ onCreated }) {
     symbol: "",
     direction: "LONG",
 
-    // ----------------------------------------------------------
-    // ORDER BOOK
-    // ----------------------------------------------------------
-
     longMinImbalance: 0.005,
     shortMaxImbalance: -0.005,
 
@@ -76,45 +74,20 @@ function CreateBotForm({ onCreated }) {
 
     counterTrendRequired: 3,
 
-    // ----------------------------------------------------------
-    // CYCLE
-    // ----------------------------------------------------------
-
     cycleMinutes: 10,
-
     cycleIntervalMs: 60000,
-
     cycleTriggerMinutes: 3,
 
-    // ----------------------------------------------------------
-    // PYRAMIDING
-    // ----------------------------------------------------------
-
     maxEntries: 3,
-
-    // ----------------------------------------------------------
-    // TP / SL
-    // ----------------------------------------------------------
 
     tpPercent: 1,
     slPercent: 0.8,
 
-    // ----------------------------------------------------------
-    // PRICE KILL ZONE
-    // ----------------------------------------------------------
-
     killZoneEnabled: false,
-
     killZoneLow: "",
-
     killZoneHigh: "",
 
-    // ----------------------------------------------------------
-    // PRICE TRIGGER LINE
-    // ----------------------------------------------------------
-
     triggerLineEnabled: false,
-
     triggerLinePrice: "",
   });
 
@@ -129,7 +102,6 @@ function CreateBotForm({ onCreated }) {
   async function loadSymbols() {
     try {
       setLoadingSymbols(true);
-
       setError("");
 
       const response =
@@ -145,17 +117,14 @@ function CreateBotForm({ onCreated }) {
         Array.isArray(data)
       ) {
         list = data;
-
       } else if (
         Array.isArray(data?.data)
       ) {
         list = data.data;
-
       } else if (
         Array.isArray(data?.symbols)
       ) {
-        list =
-          data.symbols;
+        list = data.symbols;
       }
 
       const normalized =
@@ -177,15 +146,11 @@ function CreateBotForm({ onCreated }) {
           })
           .filter(Boolean)
           .filter((symbol) =>
-            symbol.endsWith(
-              "USDT"
-            )
+            symbol.endsWith("USDT")
           )
           .sort();
 
-      setSymbols(
-        normalized
-      );
+      setSymbols(normalized);
 
       if (
         normalized.length > 0
@@ -193,7 +158,6 @@ function CreateBotForm({ onCreated }) {
         setSimple(
           (current) => ({
             ...current,
-
             symbol:
               current.symbol ||
               normalized[0],
@@ -203,14 +167,12 @@ function CreateBotForm({ onCreated }) {
         setAdvanced(
           (current) => ({
             ...current,
-
             symbol:
               current.symbol ||
               normalized[0],
           })
         );
       }
-
     } catch (err) {
       console.error(
         "[CreateBotForm] Symbols error:",
@@ -221,7 +183,6 @@ function CreateBotForm({ onCreated }) {
         err.message ||
           "Failed to load WEEX symbols"
       );
-
     } finally {
       setLoadingSymbols(false);
     }
@@ -262,9 +223,7 @@ function CreateBotForm({ onCreated }) {
   async function handlePositionTest() {
     try {
       setPositionTestLoading(true);
-
       setPositionTestError("");
-
       setPositionTest(null);
 
       const response =
@@ -277,10 +236,7 @@ function CreateBotForm({ onCreated }) {
         response?.result ??
         response;
 
-      setPositionTest(
-        result
-      );
-
+      setPositionTest(result);
     } catch (err) {
       console.error(
         "[CreateBotForm] WEEX Position Test error:",
@@ -291,7 +247,6 @@ function CreateBotForm({ onCreated }) {
         err.message ||
           "Failed to read WEEX position"
       );
-
     } finally {
       setPositionTestLoading(false);
     }
@@ -308,7 +263,6 @@ function CreateBotForm({ onCreated }) {
 
     try {
       setSaving(true);
-
       setError("");
 
       // ========================================================
@@ -359,10 +313,6 @@ function CreateBotForm({ onCreated }) {
       // ========================================================
 
       const payload = {
-        // ------------------------------------------------------
-        // BASIC
-        // ------------------------------------------------------
-
         symbol:
           advanced.symbol,
 
@@ -371,10 +321,6 @@ function CreateBotForm({ onCreated }) {
 
         entryModel:
           "ORDERBOOK",
-
-        // ------------------------------------------------------
-        // ORDER BOOK
-        // ------------------------------------------------------
 
         longMinImbalance:
           Number(
@@ -401,10 +347,6 @@ function CreateBotForm({ onCreated }) {
             advanced.counterTrendRequired
           ),
 
-        // ------------------------------------------------------
-        // CYCLE
-        // ------------------------------------------------------
-
         cycleMinutes:
           Number(
             advanced.cycleMinutes
@@ -420,18 +362,10 @@ function CreateBotForm({ onCreated }) {
             advanced.cycleTriggerMinutes
           ),
 
-        // ------------------------------------------------------
-        // PYRAMIDING
-        // ------------------------------------------------------
-
         maxEntries:
           Number(
             advanced.maxEntries
           ),
-
-        // ------------------------------------------------------
-        // TP / SL
-        // ------------------------------------------------------
 
         tpPercent:
           Number(
@@ -442,10 +376,6 @@ function CreateBotForm({ onCreated }) {
           Number(
             advanced.slPercent
           ),
-
-        // ------------------------------------------------------
-        // PRICE KILL ZONE
-        // ------------------------------------------------------
 
         killZoneEnabled:
           Boolean(
@@ -468,10 +398,6 @@ function CreateBotForm({ onCreated }) {
                 advanced.killZoneHigh
               ),
 
-        // ------------------------------------------------------
-        // PRICE TRIGGER LINE
-        // ------------------------------------------------------
-
         triggerLineEnabled:
           Boolean(
             advanced.triggerLineEnabled
@@ -485,10 +411,6 @@ function CreateBotForm({ onCreated }) {
                 advanced.triggerLinePrice
               ),
       };
-
-      // ========================================================
-      // DEBUG
-      // ========================================================
 
       console.log(
         "[CreateBotForm] Advanced payload:",
@@ -506,10 +428,6 @@ function CreateBotForm({ onCreated }) {
         }
       );
 
-      // ========================================================
-      // CREATE
-      // ========================================================
-
       const bot =
         await createAdvancedBot(
           payload
@@ -518,7 +436,6 @@ function CreateBotForm({ onCreated }) {
       onCreated?.(bot);
 
       setError("");
-
     } catch (err) {
       console.error(
         "[CreateBotForm] Create error:",
@@ -529,7 +446,6 @@ function CreateBotForm({ onCreated }) {
         err.message ||
           "Failed to create bot"
       );
-
     } finally {
       setSaving(false);
     }
@@ -541,44 +457,55 @@ function CreateBotForm({ onCreated }) {
 
   return (
     <form
+      className="create-bot-form"
       onSubmit={
         handleSubmit
       }
-      style={{
-        display:
-          "flex",
-
-        flexDirection:
-          "column",
-
-        gap: 16,
-      }}
     >
       {/* ======================================================
           BOT TYPE
       ======================================================= */}
 
-      <div>
-        <label>
-          Bot Type
-        </label>
+      <div className="form-section form-section-main">
+        <div className="form-section-header">
+          <div>
+            <h3>🤖 Bot Type</h3>
 
-        <select
-          value={botType}
-          onChange={(event) =>
-            setBotType(
-              event.target.value
-            )
-          }
-        >
-          <option value="SIMPLE">
-            SIMPLE
-          </option>
+            <p>
+              Choose which trading engine this bot will use.
+            </p>
+          </div>
+        </div>
 
-          <option value="ADVANCED">
-            ADVANCED
-          </option>
-        </select>
+        <div className="bot-type-selector">
+          <button
+            type="button"
+            className={
+              botType === "SIMPLE"
+                ? "bot-type-button active"
+                : "bot-type-button"
+            }
+            onClick={() =>
+              setBotType("SIMPLE")
+            }
+          >
+            ⚡ Simple
+          </button>
+
+          <button
+            type="button"
+            className={
+              botType === "ADVANCED"
+                ? "bot-type-button active"
+                : "bot-type-button"
+            }
+            onClick={() =>
+              setBotType("ADVANCED")
+            }
+          >
+            🧠 Advanced
+          </button>
+        </div>
       </div>
 
       {/* ======================================================
@@ -587,150 +514,143 @@ function CreateBotForm({ onCreated }) {
 
       {botType ===
         "SIMPLE" && (
-        <>
-          <div>
-            <label>
-              Coin
-            </label>
+        <div className="form-section">
+          <div className="form-section-header">
+            <div>
+              <h3>⚡ Simple Bot</h3>
 
-            <select
-              value={
-                simple.symbol
-              }
-              onChange={(
-                event
-              ) =>
-                updateSimple(
-                  "symbol",
-                  event.target
-                    .value
-                )
-              }
-              disabled={
-                loadingSymbols
-              }
-            >
-              {symbols.map(
-                (symbol) => (
-                  <option
-                    key={
-                      symbol
-                    }
-                    value={
-                      symbol
-                    }
-                  >
-                    {symbol}
-                  </option>
-                )
-              )}
-            </select>
+              <p>
+                Basic RSI/SMA based bot configuration.
+              </p>
+            </div>
           </div>
 
-          <div>
-            <label>
-              Direction
-            </label>
+          <div className="form-grid">
+            <div className="form-field">
+              <label>Coin</label>
 
-            <select
-              value={
-                simple.direction
-              }
-              onChange={(
-                event
-              ) =>
-                updateSimple(
-                  "direction",
-                  event.target
-                    .value
-                )
-              }
-            >
-              <option value="LONG">
-                LONG
-              </option>
+              <select
+                value={
+                  simple.symbol
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateSimple(
+                    "symbol",
+                    event.target.value
+                  )
+                }
+                disabled={
+                  loadingSymbols
+                }
+              >
+                {symbols.map(
+                  (symbol) => (
+                    <option
+                      key={symbol}
+                      value={symbol}
+                    >
+                      {symbol}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
 
-              <option value="SHORT">
-                SHORT
-              </option>
-            </select>
+            <div className="form-field">
+              <label>Direction</label>
+
+              <select
+                value={
+                  simple.direction
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateSimple(
+                    "direction",
+                    event.target.value
+                  )
+                }
+              >
+                <option value="LONG">
+                  LONG
+                </option>
+
+                <option value="SHORT">
+                  SHORT
+                </option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Entry Model</label>
+
+              <select
+                value={
+                  simple.entryModel
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateSimple(
+                    "entryModel",
+                    event.target.value
+                  )
+                }
+              >
+                <option value="RSI">
+                  RSI
+                </option>
+
+                <option value="SMA">
+                  SMA
+                </option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>TP %</label>
+
+              <input
+                type="number"
+                step="0.1"
+                value={
+                  simple.tpPercent
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateSimple(
+                    "tpPercent",
+                    event.target.value
+                  )
+                }
+              />
+            </div>
+
+            <div className="form-field">
+              <label>SL %</label>
+
+              <input
+                type="number"
+                step="0.1"
+                value={
+                  simple.slPercent
+                }
+                onChange={(
+                  event
+                ) =>
+                  updateSimple(
+                    "slPercent",
+                    event.target.value
+                  )
+                }
+              />
+            </div>
           </div>
-
-          <div>
-            <label>
-              Entry Model
-            </label>
-
-            <select
-              value={
-                simple.entryModel
-              }
-              onChange={(
-                event
-              ) =>
-                updateSimple(
-                  "entryModel",
-                  event.target
-                    .value
-                )
-              }
-            >
-              <option value="RSI">
-                RSI
-              </option>
-
-              <option value="SMA">
-                SMA
-              </option>
-            </select>
-          </div>
-
-          <div>
-            <label>
-              TP %
-            </label>
-
-            <input
-              type="number"
-              step="0.1"
-              value={
-                simple.tpPercent
-              }
-              onChange={(
-                event
-              ) =>
-                updateSimple(
-                  "tpPercent",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          <div>
-            <label>
-              SL %
-            </label>
-
-            <input
-              type="number"
-              step="0.1"
-              value={
-                simple.slPercent
-              }
-              onChange={(
-                event
-              ) =>
-                updateSimple(
-                  "slPercent",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-        </>
+        </div>
       )}
 
       {/* ======================================================
@@ -740,600 +660,608 @@ function CreateBotForm({ onCreated }) {
       {botType ===
         "ADVANCED" && (
         <>
-          <h3>
-            Advanced Bot
-          </h3>
+          {/* BASIC */}
 
-          {/* ------------------------------------------------
-              COIN
-          ------------------------------------------------- */}
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h3>🧠 Advanced Bot</h3>
 
-          <div>
-            <label>
-              Coin
-            </label>
+                <p>
+                  Configure order flow, cycle, pyramiding,
+                  TP/SL and price protection.
+                </p>
+              </div>
+            </div>
 
-            <select
-              value={
-                advanced.symbol
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "symbol",
-                  event.target
-                    .value
-                )
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Coin</label>
+
+                <select
+                  value={
+                    advanced.symbol
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "symbol",
+                      event.target.value
+                    )
+                  }
+                  disabled={
+                    loadingSymbols
+                  }
+                >
+                  {symbols.map(
+                    (symbol) => (
+                      <option
+                        key={symbol}
+                        value={symbol}
+                      >
+                        {symbol}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label>Direction</label>
+
+                <select
+                  value={
+                    advanced.direction
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "direction",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="LONG">
+                    LONG
+                  </option>
+
+                  <option value="SHORT">
+                    SHORT
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* WEEX POSITION TEST */}
+
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h4>🔌 WEEX Position Test</h4>
+
+                <p>
+                  Directly check the current WEEX position.
+                </p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Symbol</label>
+
+                <input
+                  value={
+                    advanced.symbol
+                  }
+                  disabled
+                  readOnly
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Position Side</label>
+
+                <select
+                  value={
+                    positionTestSide
+                  }
+                  onChange={(
+                    event
+                  ) => {
+                    setPositionTestSide(
+                      event.target.value
+                    );
+
+                    setPositionTest(
+                      null
+                    );
+
+                    setPositionTestError(
+                      ""
+                    );
+                  }}
+                >
+                  <option value="LONG">
+                    LONG
+                  </option>
+
+                  <option value="SHORT">
+                    SHORT
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={
+                handlePositionTest
               }
               disabled={
-                loadingSymbols
+                positionTestLoading ||
+                loadingSymbols ||
+                !advanced.symbol
               }
             >
-              {symbols.map(
-                (symbol) => (
-                  <option
-                    key={
-                      symbol
-                    }
-                    value={
-                      symbol
-                    }
-                  >
-                    {symbol}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
+              {positionTestLoading
+                ? "Checking WEEX..."
+                : "🔍 Check WEEX Position"}
+            </button>
 
-          {/* ------------------------------------------------
-              DIRECTION
-          ------------------------------------------------- */}
-
-          <div>
-            <label>
-              Direction
-            </label>
-
-            <select
-              value={
-                advanced.direction
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "direction",
-                  event.target
-                    .value
-                )
-              }
-            >
-              <option value="LONG">
-                LONG
-              </option>
-
-              <option value="SHORT">
-                SHORT
-              </option>
-            </select>
-          </div>
-
-          {/* ------------------------------------------------
-              WEEX POSITION TEST
-          ------------------------------------------------- */}
-
-          <h4>
-            WEEX Position Test
-          </h4>
-
-          <div>
-            <label>
-              Symbol
-            </label>
-
-            <input
-              value={
-                advanced.symbol
-              }
-              disabled
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label>
-              Position Side
-            </label>
-
-            <select
-              value={
-                positionTestSide
-              }
-              onChange={(
-                event
-              ) => {
-                setPositionTestSide(
-                  event.target.value
-                );
-
-                setPositionTest(
-                  null
-                );
-
-                setPositionTestError(
-                  ""
-                );
-              }}
-            >
-              <option value="LONG">
-                LONG
-              </option>
-
-              <option value="SHORT">
-                SHORT
-              </option>
-            </select>
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              handlePositionTest
-            }
-            disabled={
-              positionTestLoading ||
-              loadingSymbols ||
-              !advanced.symbol
-            }
-          >
-            {positionTestLoading
-              ? "Checking WEEX..."
-              : "Check WEEX Position"}
-          </button>
-
-          {positionTestError && (
-            <div
-              style={{
-                padding:
-                  "10px",
-
-                border:
-                  "1px solid #ef4444",
-
-                borderRadius:
-                  "6px",
-              }}
-            >
-              {positionTestError}
-            </div>
-          )}
-
-          {positionTest && (
-            <div
-              style={{
-                padding:
-                  "12px",
-
-                border:
-                  "1px solid #2563eb",
-
-                borderRadius:
-                  "6px",
-
-                display:
-                  "flex",
-
-                flexDirection:
-                  "column",
-
-                gap: 6,
-              }}
-            >
-              <strong>
-                WEEX Position Result
-              </strong>
-
-              <div>
-                Connected:{" "}
-                {positionTest.connected
-                  ? "YES"
-                  : "NO"}
+            {positionTestError && (
+              <div className="form-error">
+                {positionTestError}
               </div>
+            )}
 
-              <div>
-                Authenticated:{" "}
-                {positionTest.authenticated
-                  ? "YES"
-                  : "NO"}
-              </div>
+            {positionTest && (
+              <div className="position-result">
+                <strong>
+                  WEEX Position Result
+                </strong>
 
-              <div>
-                Simulated:{" "}
-                {positionTest.simulated
-                  ? "YES"
-                  : "NO"}
-              </div>
+                <div className="position-grid">
+                  <div>
+                    Connected
+                    <strong>
+                      {positionTest.connected
+                        ? "YES"
+                        : "NO"}
+                    </strong>
+                  </div>
 
-              <div>
-                Symbol:{" "}
-                {positionTest.symbol ||
-                  advanced.symbol}
-              </div>
+                  <div>
+                    Authenticated
+                    <strong>
+                      {positionTest.authenticated
+                        ? "YES"
+                        : "NO"}
+                    </strong>
+                  </div>
 
-              <div>
-                Side:{" "}
-                {positionTest.positionSide ||
-                  positionTestSide}
-              </div>
+                  <div>
+                    Simulated
+                    <strong>
+                      {positionTest.simulated
+                        ? "YES"
+                        : "NO"}
+                    </strong>
+                  </div>
 
-              <div>
-                Has Position:{" "}
-                {positionTest.hasPosition
-                  ? "YES"
-                  : "NO"}
-              </div>
+                  <div>
+                    Symbol
+                    <strong>
+                      {positionTest.symbol ||
+                        advanced.symbol}
+                    </strong>
+                  </div>
 
-              <div>
-                Size:{" "}
-                {positionTest.size ?? 0}
-              </div>
+                  <div>
+                    Side
+                    <strong>
+                      {positionTest.positionSide ||
+                        positionTestSide}
+                    </strong>
+                  </div>
 
-              <div>
-                Open Value:{" "}
-                {positionTest.openValue ?? 0}
-              </div>
+                  <div>
+                    Has Position
+                    <strong>
+                      {positionTest.hasPosition
+                        ? "YES"
+                        : "NO"}
+                    </strong>
+                  </div>
 
-              <div>
-                Average Entry Price:{" "}
-                {positionTest.averageEntryPrice ??
-                  "—"}
-              </div>
+                  <div>
+                    Size
+                    <strong>
+                      {positionTest.size ?? 0}
+                    </strong>
+                  </div>
 
-              {positionTest.lastPositionSyncError && (
-                <div>
-                  Sync Error:{" "}
-                  {positionTest.lastPositionSyncError}
+                  <div>
+                    Open Value
+                    <strong>
+                      {positionTest.openValue ?? 0}
+                    </strong>
+                  </div>
+
+                  <div>
+                    Average Entry Price
+                    <strong>
+                      {positionTest.averageEntryPrice ??
+                        "—"}
+                    </strong>
+                  </div>
                 </div>
-              )}
+
+                {positionTest.lastPositionSyncError && (
+                  <div className="position-sync-error">
+                    Sync Error:{" "}
+                    {positionTest.lastPositionSyncError}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ORDER BOOK */}
+
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h4>📖 Order Book Entry</h4>
+
+                <p>
+                  200-level trend with 15 / 20 / 30 / 60
+                  confirmation depths.
+                </p>
+              </div>
             </div>
-          )}
 
-          {/* ------------------------------------------------
-              ORDER BOOK
-          ------------------------------------------------- */}
+            <div className="form-grid">
+              <div className="form-field">
+                <label>200 Level</label>
 
-          <h4>
-            Order Book Entry
-          </h4>
+                <input
+                  value="TREND"
+                  disabled
+                  readOnly
+                />
+              </div>
 
-          <div>
-            <label>
-              200 Level
-            </label>
+              <div className="form-field">
+                <label>Entry Depths</label>
 
-            <input
-              value="TREND"
-              disabled
-              readOnly
-            />
+                <input
+                  value="15 / 20 / 30 / 60"
+                  disabled
+                  readOnly
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Counter-Trend Required
+                </label>
+
+                <select
+                  value={
+                    advanced.counterTrendRequired
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "counterTrendRequired",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="1">
+                    1 / 4
+                  </option>
+
+                  <option value="2">
+                    2 / 4
+                  </option>
+
+                  <option value="3">
+                    3 / 4
+                  </option>
+
+                  <option value="4">
+                    4 / 4
+                  </option>
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Long Min Imbalance
+                </label>
+
+                <input
+                  type="number"
+                  step="0.001"
+                  value={
+                    advanced.longMinImbalance
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "longMinImbalance",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Short Max Imbalance
+                </label>
+
+                <input
+                  type="number"
+                  step="0.001"
+                  value={
+                    advanced.shortMaxImbalance
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "shortMaxImbalance",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Minimum Bid / Ask Ratio
+                </label>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  value={
+                    advanced.minBidAskRatio
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "minBidAskRatio",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Minimum Ask / Bid Ratio
+                </label>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  value={
+                    advanced.minAskBidRatio
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "minAskBidRatio",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>
-              Entry Depths
-            </label>
+          {/* CYCLE */}
 
-            <input
-              value="15 / 20 / 30 / 60"
-              disabled
-              readOnly
-            />
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h4>⏱️ 10-Minute Cycle</h4>
+
+                <p>
+                  Automatic scanning and trigger configuration.
+                </p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Cycle Minutes</label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={
+                    advanced.cycleMinutes
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "cycleMinutes",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Scan Interval</label>
+
+                <input
+                  value="1 minute"
+                  disabled
+                  readOnly
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Trigger Minutes Required
+                </label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={
+                    advanced.cycleTriggerMinutes
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "cycleTriggerMinutes",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>
-              Counter-Trend Required
-            </label>
+          {/* PYRAMIDING */}
 
-            <select
-              value={
-                advanced.counterTrendRequired
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "counterTrendRequired",
-                  event.target
-                    .value
-                )
-              }
-            >
-              <option value="1">
-                1 / 4
-              </option>
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h4>📈 Pyramiding</h4>
 
-              <option value="2">
-                2 / 4
-              </option>
+                <p>
+                  Maximum number of entries for one
+                  position cycle.
+                </p>
+              </div>
+            </div>
 
-              <option value="3">
-                3 / 4
-              </option>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Maximum Entries
+                </label>
 
-              <option value="4">
-                4 / 4
-              </option>
-            </select>
+                <select
+                  value={
+                    advanced.maxEntries
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "maxEntries",
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="1">
+                    1
+                  </option>
+
+                  <option value="2">
+                    2
+                  </option>
+
+                  <option value="3">
+                    3
+                  </option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>
-              Long Min Imbalance
-            </label>
+          {/* TP / SL */}
 
-            <input
-              type="number"
-              step="0.001"
-              value={
-                advanced.longMinImbalance
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "longMinImbalance",
-                  event.target
-                    .value
-                )
-              }
-            />
+          <div className="form-section">
+            <div className="form-section-header">
+              <div>
+                <h4>🎯 TP / SL</h4>
+
+                <p>
+                  Initial take-profit and stop-loss
+                  configuration.
+                </p>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-field">
+                <label>TP %</label>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={
+                    advanced.tpPercent
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "tpPercent",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label>SL %</label>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={
+                    advanced.slPercent
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateAdvanced(
+                      "slPercent",
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>
-              Short Max Imbalance
-            </label>
+          {/* PRICE TRIGGER */}
 
-            <input
-              type="number"
-              step="0.001"
-              value={
-                advanced.shortMaxImbalance
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "shortMaxImbalance",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
+          <div className="form-section form-section-protection">
+            <div className="form-section-header">
+              <div>
+                <h4>🎯 Price Trigger Line</h4>
 
-          <div>
-            <label>
-              Minimum Bid / Ask Ratio
-            </label>
+                <p>
+                  Bot waits for price to touch the configured
+                  line before becoming armed.
+                </p>
+              </div>
+            </div>
 
-            <input
-              type="number"
-              step="0.01"
-              value={
-                advanced.minBidAskRatio
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "minBidAskRatio",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          <div>
-            <label>
-              Minimum Ask / Bid Ratio
-            </label>
-
-            <input
-              type="number"
-              step="0.01"
-              value={
-                advanced.minAskBidRatio
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "minAskBidRatio",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          {/* ------------------------------------------------
-              CYCLE
-          ------------------------------------------------- */}
-
-          <h4>
-            10-Minute Cycle
-          </h4>
-
-          <div>
-            <label>
-              Cycle Minutes
-            </label>
-
-            <input
-              type="number"
-              min="1"
-              value={
-                advanced.cycleMinutes
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "cycleMinutes",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          <div>
-            <label>
-              Scan Interval
-            </label>
-
-            <input
-              value="1 minute"
-              disabled
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label>
-              Trigger Minutes Required
-            </label>
-
-            <input
-              type="number"
-              min="1"
-              value={
-                advanced.cycleTriggerMinutes
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "cycleTriggerMinutes",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          {/* ------------------------------------------------
-              PYRAMIDING
-          ------------------------------------------------- */}
-
-          <h4>
-            Pyramiding
-          </h4>
-
-          <div>
-            <label>
-              Maximum Entries
-            </label>
-
-            <select
-              value={
-                advanced.maxEntries
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "maxEntries",
-                  event.target
-                    .value
-                )
-              }
-            >
-              <option value="1">
-                1
-              </option>
-
-              <option value="2">
-                2
-              </option>
-
-              <option value="3">
-                3
-              </option>
-            </select>
-          </div>
-
-          {/* ------------------------------------------------
-              TP / SL
-          ------------------------------------------------- */}
-
-          <h4>
-            TP / SL
-          </h4>
-
-          <div>
-            <label>
-              TP %
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={
-                advanced.tpPercent
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "tpPercent",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          <div>
-            <label>
-              SL %
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={
-                advanced.slPercent
-              }
-              onChange={(
-                event
-              ) =>
-                updateAdvanced(
-                  "slPercent",
-                  event.target
-                    .value
-                )
-              }
-            />
-          </div>
-
-          {/* ------------------------------------------------
-              PRICE TRIGGER LINE
-          ------------------------------------------------- */}
-
-          <h4>
-            Price Trigger Line
-          </h4>
-
-          <div>
-            <label>
+            <label className="checkbox-field">
               <input
                 type="checkbox"
                 checked={
@@ -1344,73 +1272,77 @@ function CreateBotForm({ onCreated }) {
                 ) =>
                   updateAdvanced(
                     "triggerLineEnabled",
-                    event.target
-                      .checked
+                    event.target.checked
                   )
                 }
               />
 
-              {" "}
-
-              Enable Price Trigger Line
+              <span>
+                Enable Price Trigger Line
+              </span>
             </label>
+
+            {advanced.triggerLineEnabled && (
+              <div className="protection-fields">
+                <div className="form-field">
+                  <label>
+                    Trigger Price
+                  </label>
+
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="Enter trigger price"
+                    value={
+                      advanced.triggerLinePrice
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      updateAdvanced(
+                        "triggerLinePrice",
+                        event.target.value
+                      )
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="info-box">
+                  <div>
+                    LONG → price must come DOWN to
+                    the trigger line.
+                  </div>
+
+                  <div>
+                    SHORT → price must come UP to the
+                    trigger line.
+                  </div>
+
+                  <div>
+                    Touching the line → bot becomes ARMED.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {advanced.triggerLineEnabled && (
-            <>
+          {/* KILL ZONE */}
+
+          <div className="form-section form-section-danger">
+            <div className="form-section-header">
               <div>
-                <label>
-                  Trigger Price
-                </label>
+                <h4>☠️ Price Kill Zone</h4>
 
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="Enter trigger price"
-                  value={
-                    advanced.triggerLinePrice
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    updateAdvanced(
-                      "triggerLinePrice",
-                      event.target
-                        .value
-                    )
-                  }
-                  required
-                />
+                <p>
+                  If price enters the configured zone,
+                  the bot is killed.
+                </p>
               </div>
+            </div>
 
-              <div>
-                LONG → price must come
-                DOWN to the trigger line.
-              </div>
-
-              <div>
-                SHORT → price must come
-                UP to the trigger line.
-              </div>
-
-              <div>
-                Touching the line →
-                bot becomes ARMED.
-              </div>
-            </>
-          )}
-
-          {/* ------------------------------------------------
-              PRICE KILL ZONE
-          ------------------------------------------------- */}
-
-          <h4>
-            Price Kill Zone
-          </h4>
-
-          <div>
-            <label>
+            <label className="checkbox-field">
               <input
                 type="checkbox"
                 checked={
@@ -1421,75 +1353,73 @@ function CreateBotForm({ onCreated }) {
                 ) =>
                   updateAdvanced(
                     "killZoneEnabled",
-                    event.target
-                      .checked
+                    event.target.checked
                   )
                 }
               />
 
-              {" "}
-
-              Enable Price Kill Zone
+              <span>
+                Enable Price Kill Zone
+              </span>
             </label>
+
+            {advanced.killZoneEnabled && (
+              <div className="protection-fields">
+                <div className="form-grid">
+                  <div className="form-field">
+                    <label>
+                      Kill Zone Low
+                    </label>
+
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Optional"
+                      value={
+                        advanced.killZoneLow
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateAdvanced(
+                          "killZoneLow",
+                          event.target.value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>
+                      Kill Zone High
+                    </label>
+
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Optional"
+                      value={
+                        advanced.killZoneHigh
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateAdvanced(
+                          "killZoneHigh",
+                          event.target.value
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="warning-box">
+                  ☠️ Price enters the configured zone →
+                  bot is killed.
+                </div>
+              </div>
+            )}
           </div>
-
-          {advanced.killZoneEnabled && (
-            <>
-              <div>
-                <label>
-                  Kill Zone Low
-                </label>
-
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Optional"
-                  value={
-                    advanced.killZoneLow
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    updateAdvanced(
-                      "killZoneLow",
-                      event.target
-                        .value
-                    )
-                  }
-                />
-              </div>
-
-              <div>
-                <label>
-                  Kill Zone High
-                </label>
-
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Optional"
-                  value={
-                    advanced.killZoneHigh
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    updateAdvanced(
-                      "killZoneHigh",
-                      event.target
-                        .value
-                    )
-                  }
-                />
-              </div>
-
-              <div>
-                Price enters the
-                configured zone →
-                bot is killed.
-              </div>
-            </>
-          )}
         </>
       )}
 
@@ -1498,18 +1428,7 @@ function CreateBotForm({ onCreated }) {
       ======================================================= */}
 
       {error && (
-        <div
-          style={{
-            padding:
-              "10px",
-
-            border:
-              "1px solid #ef4444",
-
-            borderRadius:
-              "6px",
-          }}
-        >
+        <div className="form-error">
           {error}
         </div>
       )}
@@ -1518,17 +1437,20 @@ function CreateBotForm({ onCreated }) {
           CREATE
       ======================================================= */}
 
-      <button
-        type="submit"
-        disabled={
-          saving ||
-          loadingSymbols
-        }
-      >
-        {saving
-          ? "Creating..."
-          : "Create Bot"}
-      </button>
+      <div className="create-bot-submit">
+        <button
+          type="submit"
+          className="create-button"
+          disabled={
+            saving ||
+            loadingSymbols
+          }
+        >
+          {saving
+            ? "Creating..."
+            : "🍌 Create Bot"}
+        </button>
+      </div>
     </form>
   );
 }

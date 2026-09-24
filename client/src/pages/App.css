@@ -1,0 +1,516 @@
+/* =========================================================
+   WEEX BOT LAB
+   GLOBAL APP STYLE
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  background: #f5f7fa;
+  color: #1f2937;
+}
+
+/* =========================================================
+   APP
+   ========================================================= */
+
+.app {
+  width: 100%;
+  min-height: 100vh;
+
+  background: #f5f7fa;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.app-header {
+  width: 100%;
+  height: 68px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 28px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #d9dee7;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+}
+
+.brand-monkey {
+  font-size: 32px;
+
+  display: inline-block;
+
+  animation:
+    monkey-bounce 2.5s
+    ease-in-out
+    infinite;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+}
+
+.brand-text strong {
+  font-size: 18px;
+
+  color: #111827;
+}
+
+.brand-text span {
+  font-size: 11px;
+
+  color: #9ca3af;
+}
+
+.backend-status {
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  font-size: 13px;
+
+  color: #6b7280;
+}
+
+.status-online {
+  color: #16a34a;
+
+  font-weight: 700;
+
+  animation:
+    status-pulse 2s
+    ease-in-out
+    infinite;
+}
+
+.status-offline {
+  color: #dc2626;
+
+  font-weight: 700;
+}
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
+.app-nav {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  padding: 9px 20px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #d9dee7;
+
+  overflow-x: auto;
+}
+
+.nav-button {
+  border: 0;
+
+  background: transparent;
+
+  color: #4b5563;
+
+  padding: 10px 15px;
+
+  border-radius: 6px;
+
+  font-size: 14px;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+
+.nav-button:hover {
+  background: #eef4ff;
+
+  color: #2563eb;
+
+  transform:
+    translateY(-1px);
+}
+
+.nav-button.active {
+  background: #2563eb;
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   CENTER CONTENT
+   ========================================================= */
+
+.app-content {
+  width: 100%;
+
+  display: flex;
+  justify-content: center;
+}
+
+.app-main {
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 0 auto;
+
+  padding: 28px;
+}
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+.app-error {
+  margin-bottom: 20px;
+
+  padding: 12px 14px;
+
+  background: #fff1f2;
+
+  border: 1px solid #fecdd3;
+
+  border-radius: 6px;
+
+  color: #b91c1c;
+
+  font-size: 14px;
+}
+
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+.app-loading {
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  background: #f5f7fa;
+
+  color: #374151;
+}
+
+.loading-jungle {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  font-size: 42px;
+}
+
+.loading-monkey {
+  animation:
+    monkey-bounce 0.8s
+    ease-in-out
+    infinite
+    alternate;
+}
+
+.loading-banana {
+  animation:
+    banana-spin 1.5s
+    ease-in-out
+    infinite;
+}
+
+.loading-rock {
+  animation:
+    rock-bounce 1s
+    ease-in-out
+    infinite
+    alternate;
+}
+
+.loading-gorilla {
+  animation:
+    gorilla-breathe 1.2s
+    ease-in-out
+    infinite
+    alternate;
+}
+
+.loading-title {
+  font-size: 18px;
+
+  font-weight: 700;
+
+  color: #374151;
+}
+
+.loading-subtitle {
+  font-size: 12px;
+
+  color: #9ca3af;
+}
+
+/* =========================================================
+   GLOBAL CARD
+   ========================================================= */
+
+.card {
+  background: #ffffff;
+
+  border: 1px solid #d9dee7;
+
+  border-radius: 8px;
+
+  padding: 18px;
+}
+
+/* =========================================================
+   GLOBAL PAGE TITLES
+   ========================================================= */
+
+.page-title {
+  margin: 0 0 6px 0;
+
+  font-size: 24px;
+
+  color: #111827;
+}
+
+.page-subtitle {
+  margin: 0 0 20px 0;
+
+  font-size: 14px;
+
+  color: #6b7280;
+}
+
+/* =========================================================
+   CAVEMAN FOOTER
+   ========================================================= */
+
+.caveman-footer {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  padding: 20px;
+
+  color: #9ca3af;
+
+  font-size: 12px;
+}
+
+.footer-jungle {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  font-size: 20px;
+}
+
+.footer-caveman {
+  font-size: 28px;
+
+  display: inline-block;
+
+  animation:
+    monkey-bounce 2s
+    ease-in-out
+    infinite;
+}
+
+.footer-text strong {
+  color: #6b7280;
+}
+
+.footer-rock {
+  font-size: 15px;
+
+  animation:
+    rock-shake 4s
+    ease-in-out
+    infinite;
+}
+
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes monkey-bounce {
+  0%,
+  100% {
+    transform:
+      translateY(0)
+      rotate(0deg);
+  }
+
+  50% {
+    transform:
+      translateY(-4px)
+      rotate(-4deg);
+  }
+}
+
+@keyframes banana-spin {
+  0%,
+  100% {
+    transform:
+      rotate(0deg);
+  }
+
+  50% {
+    transform:
+      rotate(15deg)
+      translateY(-4px);
+  }
+}
+
+@keyframes rock-bounce {
+  0% {
+    transform:
+      translateY(0)
+      rotate(0deg);
+  }
+
+  100% {
+    transform:
+      translateY(-8px)
+      rotate(8deg);
+  }
+}
+
+@keyframes gorilla-breathe {
+  0% {
+    transform:
+      scale(1);
+  }
+
+  100% {
+    transform:
+      scale(1.08);
+  }
+}
+
+@keyframes rock-shake {
+  0%,
+  90%,
+  100% {
+    transform:
+      rotate(0deg);
+  }
+
+  93% {
+    transform:
+      rotate(-12deg);
+  }
+
+  96% {
+    transform:
+      rotate(12deg);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+  .app-header {
+    padding: 0 14px;
+  }
+
+  .brand-text span {
+    display: none;
+  }
+
+  .brand-text strong {
+    font-size: 16px;
+  }
+
+  .backend-status {
+    font-size: 12px;
+  }
+
+  .app-nav {
+    justify-content: flex-start;
+
+    padding: 8px 10px;
+  }
+
+  .app-main {
+    padding: 16px;
+  }
+
+  .loading-jungle {
+    font-size: 32px;
+  }
+}

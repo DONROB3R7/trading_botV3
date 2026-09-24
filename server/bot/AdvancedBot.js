@@ -220,6 +220,41 @@ class AdvancedBot {
 
 
     // ============================================================
+    // ENTRY #1 PROTECTION TIMING
+    // ============================================================
+
+    this.protectionDelayMs =
+      Math.max(
+        0,
+        Number(
+          config.protectionDelayMs ??
+          30000
+        )
+      );
+
+    this.protectionTimeoutMs =
+      Math.max(
+        this.protectionDelayMs,
+        Number(
+          config.protectionTimeoutMs ??
+          60000
+        )
+      );
+
+    this.protectionPollIntervalMs =
+      Math.max(
+        250,
+        Number(
+          config.protectionPollIntervalMs ??
+          1000
+        )
+      );
+
+    this.protectionInProgress =
+      false;
+
+
+    // ============================================================
     // TP SYNC RUNTIME
     // ============================================================
 
@@ -260,6 +295,9 @@ class AdvancedBot {
         null,
 
       tpOrderId:
+        null,
+
+      slOrderId:
         null,
 
       winningGapPrice:
@@ -483,6 +521,22 @@ class AdvancedBot {
 
 
   // ============================================================
+  // SLEEP
+  // ============================================================
+
+  sleep(ms) {
+    return new Promise(
+      (resolve) => {
+        setTimeout(
+          resolve,
+          ms
+        );
+      }
+    );
+  }
+
+
+  // ============================================================
   // ORDER CALCULATION
   // ============================================================
 
@@ -623,7 +677,7 @@ class AdvancedBot {
 
 
   // ============================================================
-  // EXTRACT TP ORDER ID
+  // EXTRACT TP / ALGO ORDER ID
   // ============================================================
 
   extractTPOrderId(result) {
@@ -642,7 +696,9 @@ class AdvancedBot {
       result.response?.data?.algoId,
     ];
 
-    for (const candidate of candidates) {
+    for (
+      const candidate of candidates
+    ) {
       if (
         candidate !== undefined &&
         candidate !== null &&
@@ -727,6 +783,9 @@ class AdvancedBot {
       this.positionState.tpOrderId =
         null;
 
+      this.positionState.slOrderId =
+        null;
+
       this.positionState.tradeNumber =
         1;
 
@@ -763,6 +822,9 @@ class AdvancedBot {
             this.positionState.tpPrice,
 
           tpOrderId:
+            null,
+
+          slOrderId:
             null,
 
           openedAt:
@@ -849,6 +911,781 @@ class AdvancedBot {
 
       this.position.tpOrderId =
         this.positionState.tpOrderId;
+
+      this.position.slOrderId =
+        this.positionState.slOrderId;
+    }
+  }
+
+
+  // ============================================================
+  // READ REAL WEEX POSITION
+  // ============================================================
+
+  async getRealWEEXPosition() {
+    const position =
+      await this.execution.getPosition({
+        symbol:
+          this.symbol,
+
+        positionSide:
+          this.direction,
+      });
+
+    if (
+      !position ||
+      position.connected !== true
+    ) {
+      return {
+        found:
+          false,
+
+        position:
+          position || null,
+
+        reason:
+          position?.reason ||
+          "WEEX position data unavailable",
+      };
+    }
+
+    if (
+      position.authenticated === false
+    ) {
+      return {
+        found:
+          false,
+
+        position:
+          position,
+
+        reason:
+          "WEEX authentication failed",
+      };
+    }
+
+    const size =
+      Number(
+        position.size ?? 0
+      );
+
+    const hasPosition =
+      position.hasPosition === true ||
+      (
+        Number.isFinite(size) &&
+        size > 0
+      );
+
+    if (!hasPosition) {
+      return {
+        found:
+          false,
+
+        position:
+          position,
+
+        reason:
+          "WEEX reports no open position",
+      };
+    }
+
+    return {
+      found:
+        true,
+
+      position:
+        position,
+
+      size:
+        size,
+    };
+  }
+
+
+  // ============================================================
+  // SYNC REAL POSITION INTO LOCAL STATE
+  // ============================================================
+
+  syncRealPositionState(
+    position
+  ) {
+    if (!position) {
+      return null;
+    }
+
+    const realSize =
+      Number(
+        position.size
+      );
+
+    if (
+      Number.isFinite(realSize) &&
+      realSize > 0
+    ) {
+      this.positionState.contracts =
+        realSize;
+    }
+
+    let averageEntry =
+      Number(
+        position.averageEntryPrice ??
+        position.avgEntryPrice ??
+        position.entryPrice ??
+        NaN
+      );
+
+
+    // ==========================================================
+    // FALLBACK
+    // ==========================================================
+
+    if (
+      !Number.isFinite(averageEntry) ||
+      averageEntry <= 0
+    ) {
+      if (
+        typeof this.execution.calculateAverageEntry ===
+        "function"
+      ) {
+        averageEntry =
+          this.execution.calculateAverageEntry({
+            openValue:
+              position.openValue,
+
+            size:
+              position.size,
+          });
+      }
+    }
+
+
+    if (
+      !Number.isFinite(averageEntry) ||
+      averageEntry <= 0
+    ) {
+      throw new Error(
+        "WEEX position exists but average entry price is invalid"
+      );
+    }
+
+
+    this.positionState.averageEntryPrice =
+      averageEntry;
+
+    this.positionState.lastPositionSyncAt =
+      new Date().toISOString();
+
+    this.positionState.lastPositionSyncError =
+      null;
+
+
+    if (
+      this.position
+    ) {
+      this.position.averageEntryPrice =
+        averageEntry;
+
+      this.position.contracts =
+        this.positionState.contracts;
+
+      this.position.slPrice =
+        this.positionState.currentSLPrice;
+
+      this.position.tpPrice =
+        this.positionState.tpPrice;
+
+      this.position.tpOrderId =
+        this.positionState.tpOrderId;
+
+      this.position.slOrderId =
+        this.positionState.slOrderId;
+    }
+
+
+    return {
+      averageEntryPrice:
+        averageEntry,
+
+      size:
+        this.positionState.contracts,
+
+      openValue:
+        Number(
+          position.openValue ?? 0
+        ),
+    };
+  }
+
+
+  // ============================================================
+  // ENTRY #1 PROTECTION
+  //
+  // OPEN
+  // ↓
+  // WAIT
+  // ↓
+  // POLL WEEX
+  // ↓
+  // REAL POSITION FOUND
+  // ↓
+  // REAL AVERAGE ENTRY
+  // ↓
+  // REAL POSITION SIZE
+  // ↓
+  // RECALCULATE TP
+  // ↓
+  // SL
+  // ↓
+  // TP
+  // ============================================================
+
+  async protectEntryOne() {
+    if (
+      this.protectionInProgress
+    ) {
+      this.log(
+        "ENTRY #1 PROTECTION | Already running | Skipping duplicate protection process"
+      );
+
+      return false;
+    }
+
+    this.protectionInProgress =
+      true;
+
+
+    try {
+      // ========================================================
+      // BASIC CHECK
+      // ========================================================
+
+      if (
+        this.status !== "RUNNING"
+      ) {
+        this.log(
+          "ENTRY #1 PROTECTION | Bot no longer RUNNING | Aborted"
+        );
+
+        return false;
+      }
+
+      if (
+        this.entryCount !== 1
+      ) {
+        this.log(
+          `ENTRY #1 PROTECTION | Entry count is ${this.entryCount} | Aborted`
+        );
+
+        return false;
+      }
+
+
+      // ========================================================
+      // KILL ZONE BEFORE WAIT
+      // ========================================================
+
+      if (
+        this.killZone.enabled
+      ) {
+        const killed =
+          await this.checkPriceKillZone();
+
+        if (killed) {
+          this.log(
+            "ENTRY #1 PROTECTION | Kill Zone triggered before protection"
+          );
+
+          return false;
+        }
+      }
+
+
+      // ========================================================
+      // SHARED DELAY
+      // ========================================================
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `Waiting ${(this.protectionDelayMs / 1000).toFixed(0)}s for WEEX position registration...`
+      );
+
+      const waitStarted =
+        Date.now();
+
+      while (
+        Date.now() - waitStarted <
+        this.protectionDelayMs
+      ) {
+        if (
+          this.status !== "RUNNING"
+        ) {
+          this.log(
+            "ENTRY #1 PROTECTION | Bot stopped during initial delay"
+          );
+
+          return false;
+        }
+
+        if (
+          this.killZone.enabled
+        ) {
+          const killed =
+            await this.checkPriceKillZone();
+
+          if (killed) {
+            this.log(
+              "ENTRY #1 PROTECTION | Kill Zone triggered during initial delay"
+            );
+
+            return false;
+          }
+        }
+
+        const remaining =
+          this.protectionDelayMs -
+          (
+            Date.now() -
+            waitStarted
+          );
+
+        await this.sleep(
+          Math.min(
+            1000,
+            Math.max(
+              100,
+              remaining
+            )
+          )
+        );
+      }
+
+
+      // ========================================================
+      // POLL WEEX
+      // ========================================================
+
+      const protectionStarted =
+        Date.now();
+
+      let realPosition =
+        null;
+
+      while (
+        Date.now() -
+        protectionStarted <=
+        (
+          this.protectionTimeoutMs -
+          this.protectionDelayMs
+        )
+      ) {
+        if (
+          this.status !== "RUNNING"
+        ) {
+          this.log(
+            "ENTRY #1 PROTECTION | Bot stopped while waiting for WEEX position"
+          );
+
+          return false;
+        }
+
+
+        // ------------------------------------------------------
+        // KILL ZONE
+        // ------------------------------------------------------
+
+        if (
+          this.killZone.enabled
+        ) {
+          const killed =
+            await this.checkPriceKillZone();
+
+          if (killed) {
+            this.log(
+              "ENTRY #1 PROTECTION | Kill Zone triggered while waiting for WEEX position"
+            );
+
+            return false;
+          }
+        }
+
+
+        // ------------------------------------------------------
+        // QUERY WEEX
+        // ------------------------------------------------------
+
+        try {
+          const result =
+            await this.getRealWEEXPosition();
+
+          if (
+            result.found
+          ) {
+            realPosition =
+              result.position;
+
+            this.log(
+              `ENTRY #1 PROTECTION | REAL WEEX POSITION FOUND | ` +
+              `Size=${result.size}`
+            );
+
+            break;
+          }
+
+          this.log(
+            `ENTRY #1 PROTECTION | ` +
+            `WEEX position not visible yet | ` +
+            `${result.reason}`
+          );
+
+        } catch (error) {
+          this.log(
+            `ENTRY #1 PROTECTION | ` +
+            `Position check error: ${error.message}`
+          );
+        }
+
+
+        await this.sleep(
+          this.protectionPollIntervalMs
+        );
+      }
+
+
+      // ========================================================
+      // TIMEOUT
+      // ========================================================
+
+      if (
+        !realPosition
+      ) {
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          `WEEX position was not visible within ${this.protectionTimeoutMs / 1000}s`;
+
+        this.log(
+          `ENTRY #1 PROTECTION FAILED | ` +
+          `WEEX position not found within ${this.protectionTimeoutMs / 1000}s`
+        );
+
+        return false;
+      }
+
+
+      // ========================================================
+      // SYNC REAL POSITION
+      // ========================================================
+
+      const realState =
+        this.syncRealPositionState(
+          realPosition
+        );
+
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `REAL POSITION SYNCED | ` +
+        `Size=${realState.size} | ` +
+        `Average Entry=${realState.averageEntryPrice}`
+      );
+
+
+      // ========================================================
+      // IMPORTANT REAL QUANTITY CHECK
+      // ========================================================
+
+      const realQuantity =
+        Number(
+          realState.size
+        );
+
+      if (
+        !Number.isFinite(realQuantity) ||
+        realQuantity <= 0
+      ) {
+        this.log(
+          `ENTRY #1 PROTECTION FAILED | ` +
+          `Invalid REAL WEEX quantity=${realState.size}`
+        );
+
+        return false;
+      }
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `REAL WEEX PROTECTION QUANTITY=${realQuantity}`
+      );
+
+
+      // ========================================================
+      // RECALCULATE TP FROM REAL WEEX AVERAGE
+      // ========================================================
+
+      const realAverage =
+        realState.averageEntryPrice;
+
+      const realTP =
+        this.calculateTP(
+          realAverage
+        );
+
+      if (
+        !Number.isFinite(realTP) ||
+        realTP <= 0
+      ) {
+        throw new Error(
+          `Invalid TP calculated from real average entry ${realAverage}`
+        );
+      }
+
+      this.positionState.tpPrice =
+        realTP;
+
+      if (
+        this.position
+      ) {
+        this.position.averageEntryPrice =
+          realAverage;
+
+        this.position.tpPrice =
+          realTP;
+
+        this.position.contracts =
+          realQuantity;
+      }
+
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `REAL AVERAGE=${realAverage} | ` +
+        `REAL TP=${realTP}`
+      );
+
+
+      // ========================================================
+      // SL FIRST
+      // ========================================================
+
+      if (
+        !Number.isFinite(
+          this.positionState.currentSLPrice
+        ) ||
+        this.positionState.currentSLPrice <= 0
+      ) {
+        this.log(
+          "ENTRY #1 PROTECTION | SL INVALID | TP will NOT be placed without valid SL"
+        );
+
+        return false;
+      }
+
+
+      if (
+        typeof this.execution.placeFullPositionStopLoss !==
+        "function"
+      ) {
+        this.log(
+          "ENTRY #1 PROTECTION | SL FAILED | Execution layer does not have placeFullPositionStopLoss()"
+        );
+
+        return false;
+      }
+
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `Placing FULL-POSITION SL | ` +
+        `SL=${this.positionState.currentSLPrice} | ` +
+        `Quantity=${realQuantity}`
+      );
+
+
+      let slResult;
+
+      try {
+        slResult =
+          await this.execution.placeFullPositionStopLoss({
+            symbol:
+              this.symbol,
+
+            positionSide:
+              this.direction,
+
+            triggerPrice:
+              this.positionState.currentSLPrice,
+
+            triggerPriceType:
+              "MARK_PRICE",
+
+            clientAlgoId:
+              `adv-${this.id}-sl`,
+
+            // IMPORTANT:
+            // USE REAL WEEX POSITION SIZE
+            quantity:
+              realQuantity,
+          });
+
+      } catch (error) {
+        this.log(
+          `ENTRY #1 PROTECTION | ` +
+          `SL ERROR: ${error.message}`
+        );
+
+        return false;
+      }
+
+
+      if (
+        !slResult?.success
+      ) {
+        this.log(
+          `ENTRY #1 PROTECTION | ` +
+          `SL CREATE FAILED`
+        );
+
+        return false;
+      }
+
+
+      this.positionState.slOrderId =
+        this.extractTPOrderId(
+          slResult
+        );
+
+
+      if (
+        this.position
+      ) {
+        this.position.slOrderId =
+          this.positionState.slOrderId;
+      }
+
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `FULL-POSITION SL CREATED | ` +
+        `SL=${this.positionState.currentSLPrice} | ` +
+        `Quantity=${realQuantity} | ` +
+        `OrderID=${this.positionState.slOrderId ?? "UNKNOWN"}`
+      );
+
+
+      // ========================================================
+      // TP IMMEDIATELY AFTER SL
+      // ========================================================
+
+      if (
+        typeof this.execution.placeFullPositionTakeProfit !==
+        "function"
+      ) {
+        this.log(
+          "ENTRY #1 PROTECTION | TP FAILED | Execution layer does not have placeFullPositionTakeProfit()"
+        );
+
+        return false;
+      }
+
+
+      this.log(
+        `ENTRY #1 PROTECTION | ` +
+        `Placing FULL-POSITION TP immediately after SL | ` +
+        `TP=${realTP} | ` +
+        `Quantity=${realQuantity}`
+      );
+
+
+      let tpResult;
+
+      try {
+        tpResult =
+          await this.execution.placeFullPositionTakeProfit({
+            symbol:
+              this.symbol,
+
+            positionSide:
+              this.direction,
+
+            triggerPrice:
+              realTP,
+
+            triggerPriceType:
+              "MARK_PRICE",
+
+            clientAlgoId:
+              `adv-${this.id}-tp`,
+
+            // IMPORTANT:
+            // USE REAL WEEX POSITION SIZE
+            quantity:
+              realQuantity,
+          });
+
+      } catch (error) {
+        this.log(
+          `ENTRY #1 PROTECTION | ` +
+          `TP ERROR: ${error.message}`
+        );
+
+        return false;
+      }
+
+
+      if (
+        !tpResult?.success
+      ) {
+        this.log(
+          `ENTRY #1 PROTECTION | ` +
+          `TP CREATE FAILED`
+        );
+
+        return false;
+      }
+
+
+      const tpOrderId =
+        this.extractTPOrderId(
+          tpResult
+        );
+
+      this.positionState.tpOrderId =
+        tpOrderId;
+
+
+      if (
+        this.position
+      ) {
+        this.position.tpOrderId =
+          tpOrderId;
+      }
+
+
+      this.log(
+        `ENTRY #1 PROTECTION COMPLETE | ` +
+        `SL=${this.positionState.currentSLPrice} | ` +
+        `TP=${realTP} | ` +
+        `Quantity=${realQuantity} | ` +
+        `SL OrderID=${this.positionState.slOrderId ?? "UNKNOWN"} | ` +
+        `TP OrderID=${tpOrderId ?? "UNKNOWN"}`
+      );
+
+
+      return true;
+
+    } catch (error) {
+      this.positionState.lastPositionSyncError =
+        error.message;
+
+      this.log(
+        `ENTRY #1 PROTECTION ERROR: ${error.message}`
+      );
+
+      return false;
+
+    } finally {
+      this.protectionInProgress =
+        false;
     }
   }
 
@@ -968,10 +1805,6 @@ class AdvancedBot {
         });
 
 
-      // ========================================================
-      // CONNECTION CHECK
-      // ========================================================
-
       if (
         !position ||
         position.connected !== true
@@ -992,10 +1825,6 @@ class AdvancedBot {
         return;
       }
 
-
-      // ========================================================
-      // AUTHENTICATION CHECK
-      // ========================================================
 
       if (
         position.authenticated === false
@@ -1043,7 +1872,7 @@ class AdvancedBot {
 
 
       // ========================================================
-      // READ REAL WEEX SIZE
+      // REAL SIZE
       // ========================================================
 
       const weexSize =
@@ -1052,16 +1881,29 @@ class AdvancedBot {
         );
 
       if (
-        Number.isFinite(weexSize) &&
-        weexSize > 0
+        !Number.isFinite(weexSize) ||
+        weexSize <= 0
       ) {
-        this.positionState.contracts =
-          weexSize;
+        this.positionState.lastPositionSyncAt =
+          new Date().toISOString();
+
+        this.positionState.lastPositionSyncError =
+          "WEEX position size is invalid";
+
+        this.log(
+          `TP SYNC #${syncNumber} | ` +
+          `INVALID WEEX POSITION SIZE=${position.size}`
+        );
+
+        return;
       }
+
+      this.positionState.contracts =
+        weexSize;
 
 
       // ========================================================
-      // READ REAL AVERAGE ENTRY
+      // REAL AVERAGE
       // ========================================================
 
       let averageEntryPrice =
@@ -1116,10 +1958,6 @@ class AdvancedBot {
       }
 
 
-      // ========================================================
-      // STORE REAL WEEX POSITION
-      // ========================================================
-
       this.positionState.averageEntryPrice =
         averageEntryPrice;
 
@@ -1130,8 +1968,19 @@ class AdvancedBot {
         null;
 
 
+      if (
+        this.position
+      ) {
+        this.position.averageEntryPrice =
+          averageEntryPrice;
+
+        this.position.contracts =
+          weexSize;
+      }
+
+
       // ========================================================
-      // CALCULATE TP
+      // RECALCULATE TP
       // ========================================================
 
       const newTP =
@@ -1208,7 +2057,7 @@ class AdvancedBot {
           this.log(
             `TP SYNC #${syncNumber} | ` +
             `REAL AVERAGE UPDATED | ` +
-            `TP MODIFY NOT AVAILABLE YET`
+            `TP MODIFY NOT AVAILABLE`
           );
 
           return;
@@ -1273,7 +2122,8 @@ class AdvancedBot {
 
         this.log(
           `TP SYNC #${syncNumber} | ` +
-          `Creating full-position TP fallback`
+          `Creating full-position TP fallback | ` +
+          `Quantity=${weexSize}`
         );
 
 
@@ -1293,6 +2143,11 @@ class AdvancedBot {
 
             clientAlgoId:
               `adv-${this.id}-tp`,
+
+            // IMPORTANT:
+            // USE REAL WEEX POSITION SIZE
+            quantity:
+              weexSize,
           });
 
 
@@ -1318,6 +2173,7 @@ class AdvancedBot {
             `TP SYNC #${syncNumber} | ` +
             `TP CREATED | ` +
             `Price=${newTP} | ` +
+            `Quantity=${weexSize} | ` +
             `OrderID=${newTPOrderId ?? "UNKNOWN"}`
           );
 
@@ -1541,6 +2397,9 @@ class AdvancedBot {
     this.tpSyncInProgress =
       false;
 
+    this.protectionInProgress =
+      false;
+
     this.positionState.side =
       null;
 
@@ -1563,6 +2422,9 @@ class AdvancedBot {
       null;
 
     this.positionState.tpOrderId =
+      null;
+
+    this.positionState.slOrderId =
       null;
 
     this.positionState.winningGapPrice =
@@ -1662,6 +2524,13 @@ class AdvancedBot {
       ).toFixed(1)}s`
     );
 
+    this.log(
+      `ENTRY #1 Protection | ` +
+      `Delay=${this.protectionDelayMs / 1000}s | ` +
+      `Timeout=${this.protectionTimeoutMs / 1000}s | ` +
+      `Poll=${this.protectionPollIntervalMs / 1000}s`
+    );
+
 
     // ==========================================================
     // WEEX AUTH STATUS
@@ -1707,9 +2576,6 @@ class AdvancedBot {
 
       await this.initializeTriggerLineAtCurrentPrice();
 
-      // IMPORTANT:
-      // Trigger monitor runs independently.
-      // It does NOT wait for the order-book scanner.
       this.startTriggerLineMonitor();
 
       return;
@@ -1798,6 +2664,9 @@ class AdvancedBot {
       this.tpSyncTimer =
         null;
     }
+
+    this.protectionInProgress =
+      false;
 
     if (
       this.status !== "KILLED"
@@ -2210,8 +3079,6 @@ class AdvancedBot {
 
     // ==========================================================
     // LONG
-    //
-    // Need fresh cross DOWN.
     // ==========================================================
 
     if (
@@ -2252,8 +3119,6 @@ class AdvancedBot {
 
     // ==========================================================
     // SHORT
-    //
-    // Need fresh cross UP.
     // ==========================================================
 
     if (
@@ -2331,12 +3196,6 @@ class AdvancedBot {
 
   // ============================================================
   // TRIGGER LINE MONITOR
-  //
-  // IMPORTANT:
-  // Independent from order-book cycle.
-  //
-  // Default:
-  // 1 ticker check per second.
   // ============================================================
 
   startTriggerLineMonitor() {
@@ -3004,30 +3863,20 @@ class AdvancedBot {
       );
 
 
-      openResult =
-        await this.execution.openPosition({
-          symbol:
-            this.symbol,
+openResult =
+  await this.execution.openPosition({
+    symbol:
+      this.symbol,
 
-          direction:
-            this.direction,
+    direction:
+      this.direction,
 
-          contracts:
-            order.contracts,
+    quantity:
+      order.contracts,
 
-          marginUSDT:
-            this.marginUSDT,
-
-          leverage:
-            this.leverage,
-
-          actualNotional:
-            order.actualNotional,
-
-          estimatedMargin:
-            order.estimatedMargin,
-        });
-
+    clientOrderId:
+      `adv-open-${Date.now()}`,
+  });
 
     } catch (error) {
       this.log(
@@ -3137,164 +3986,30 @@ class AdvancedBot {
         `Initial TP=${this.positionState.tpPrice ?? "NONE"}`
       );
 
+      this.log(
+        `ENTRY #1 | ` +
+        `Protection lifecycle STARTED | ` +
+        `Delay=${this.protectionDelayMs / 1000}s | ` +
+        `Timeout=${this.protectionTimeoutMs / 1000}s`
+      );
 
-      // ========================================================
-      // FULL-POSITION STOP LOSS
-      // ========================================================
+
+      const protectedPosition =
+        await this.protectEntryOne();
+
 
       if (
-        Number.isFinite(
-          this.positionState.currentSLPrice
-        ) &&
-        this.positionState.currentSLPrice > 0
+        protectedPosition
       ) {
-        if (
-          typeof this.execution.placeFullPositionStopLoss !==
-          "function"
-        ) {
-          this.log(
-            `ENTRY #1 | SL NOT PLACED | ` +
-            `Execution layer does not have placeFullPositionStopLoss()`
-          );
-
-        } else {
-          this.log(
-            `ENTRY #1 | ` +
-            `Placing FULL-POSITION SL on WEEX | ` +
-            `SL=${this.positionState.currentSLPrice}`
-          );
-
-          try {
-            const slResult =
-              await this.execution.placeFullPositionStopLoss({
-                symbol:
-                  this.symbol,
-
-                positionSide:
-                  this.direction,
-
-                triggerPrice:
-                  this.positionState.currentSLPrice,
-
-                triggerPriceType:
-                  "MARK_PRICE",
-
-                clientAlgoId:
-                  `adv-${this.id}-sl`,
-              });
-
-
-            if (
-              slResult?.success
-            ) {
-              this.log(
-                `ENTRY #1 | ` +
-                `FULL-POSITION SL CREATED | ` +
-                `SL=${this.positionState.currentSLPrice}`
-              );
-
-            } else {
-              this.log(
-                `ENTRY #1 | ` +
-                `FULL-POSITION SL CREATE FAILED`
-              );
-            }
-
-          } catch (error) {
-            this.log(
-              `ENTRY #1 | ` +
-              `FULL-POSITION SL ERROR: ${error.message}`
-            );
-          }
-        }
+        this.log(
+          `ENTRY #1 | ` +
+          `PROTECTED SUCCESSFULLY`
+        );
 
       } else {
         this.log(
           `ENTRY #1 | ` +
-          `SL NOT CREATED | Invalid SL price`
-        );
-      }
-
-
-      // ========================================================
-      // FULL-POSITION TAKE PROFIT
-      // ========================================================
-
-      if (
-        Number.isFinite(
-          this.positionState.tpPrice
-        ) &&
-        this.positionState.tpPrice > 0
-      ) {
-        this.log(
-          `ENTRY #1 | ` +
-          `Placing FULL-POSITION TP on WEEX | ` +
-          `TP=${this.positionState.tpPrice}`
-        );
-
-        try {
-          const tpResult =
-            await this.execution.placeFullPositionTakeProfit({
-              symbol:
-                this.symbol,
-
-              positionSide:
-                this.direction,
-
-              triggerPrice:
-                this.positionState.tpPrice,
-
-              triggerPriceType:
-                "MARK_PRICE",
-
-              clientAlgoId:
-                `adv-${this.id}-tp`,
-            });
-
-
-          if (
-            tpResult?.success
-          ) {
-            const tpOrderId =
-              this.extractTPOrderId(
-                tpResult
-              );
-
-            this.positionState.tpOrderId =
-              tpOrderId;
-
-            if (
-              this.position
-            ) {
-              this.position.tpOrderId =
-                tpOrderId;
-            }
-
-            this.log(
-              `ENTRY #1 | ` +
-              `FULL-POSITION TP CREATED | ` +
-              `TP=${this.positionState.tpPrice} | ` +
-              `TP Order ID=${tpOrderId ?? "UNKNOWN"}`
-            );
-
-          } else {
-            this.log(
-              `ENTRY #1 | ` +
-              `FULL-POSITION TP CREATE FAILED`
-            );
-          }
-
-        } catch (error) {
-          this.log(
-            `ENTRY #1 | ` +
-            `FULL-POSITION TP ERROR: ${error.message}`
-          );
-        }
-
-      } else {
-        this.log(
-          `ENTRY #1 | ` +
-          `TP NOT CREATED | Invalid TP price`
+          `PROTECTION FAILED OR TIMED OUT`
         );
       }
 
@@ -3624,6 +4339,35 @@ class AdvancedBot {
 
 
       // ========================================================
+      // ENTRY #1 PROTECTION
+      // ========================================================
+
+      protectionDelayMs:
+        this.protectionDelayMs,
+
+      protectionDelaySeconds:
+        this.protectionDelayMs /
+        1000,
+
+      protectionTimeoutMs:
+        this.protectionTimeoutMs,
+
+      protectionTimeoutSeconds:
+        this.protectionTimeoutMs /
+        1000,
+
+      protectionPollIntervalMs:
+        this.protectionPollIntervalMs,
+
+      protectionPollIntervalSeconds:
+        this.protectionPollIntervalMs /
+        1000,
+
+      protectionInProgress:
+        this.protectionInProgress,
+
+
+      // ========================================================
       // KILL ZONE
       // ========================================================
 
@@ -3689,3 +4433,4 @@ class AdvancedBot {
 
 module.exports =
   AdvancedBot;
+

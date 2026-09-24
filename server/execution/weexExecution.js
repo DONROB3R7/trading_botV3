@@ -1,8 +1,16 @@
 const crypto = require("crypto");
 
-const WEEX_BASE_URL =
-  "https://api-contract.weex.com";
+// ============================================================
+// WEEX CONFIG
+// ============================================================
 
+const WEEX_BASE_URL = "https://api-contract.weex.com";
+
+const TP_SL_RATE_LIMIT_MS = 10500;
+
+// ============================================================
+// WEEX EXECUTION
+// ============================================================
 
 class WeexExecution {
   constructor(config = {}) {
@@ -27,842 +35,533 @@ class WeexExecution {
       process.env.WEEX_API_PASSPHRASE ||
       "";
 
-    this.authEnabled =
-      Boolean(
-        this.apiKey &&
-        this.secretKey &&
-        this.passphrase
-      );
+    this.authEnabled = Boolean(
+      this.apiKey &&
+      this.secretKey &&
+      this.passphrase
+    );
+
+    this.lastTpSlRequestAt = 0;
+
+    this.tpSlRateLimitMs = Math.max(
+      10000,
+      Number(
+        config.tpSlRateLimitMs ??
+          TP_SL_RATE_LIMIT_MS
+      )
+    );
   }
 
+  // ==========================================================
+  // SLEEP
+  // ==========================================================
 
-  // ============================================================
-  // NORMALIZE QUERY
-  // ============================================================
+  async sleep(ms) {
+    return new Promise((resolve) =>
+      setTimeout(resolve, ms)
+    );
+  }
+
+  // ==========================================================
+  // TP / SL RATE LIMIT
+  // ==========================================================
+
+  async waitForTpSlRateLimit() {
+    const now = Date.now();
+
+    const elapsed =
+      now - this.lastTpSlRequestAt;
+
+    const remaining =
+      this.tpSlRateLimitMs - elapsed;
+
+    if (remaining > 0) {
+      console.log(
+        `[Execution] TP/SL rate limit | Waiting ${(
+          remaining / 1000
+        ).toFixed(1)}s`
+      );
+
+      await this.sleep(remaining);
+    }
+
+    this.lastTpSlRequestAt = Date.now();
+  }
+
+  // ==========================================================
+  // QUERY BUILDER
+  // ==========================================================
 
   buildQuery(params = {}) {
-    const entries =
-      Object.entries(params)
-        .filter(
-          ([, value]) =>
-            value !== undefined &&
-            value !== null &&
-            value !== ""
-        );
+    const entries = Object.entries(params)
+      .filter(
+        ([, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== ""
+      )
+      .sort(([a], [b]) =>
+        a.localeCompare(b)
+      );
 
     if (!entries.length) {
       return "";
     }
 
-    return entries
-      .map(
-        ([key, value]) =>
-          `${encodeURIComponent(key)}=${encodeURIComponent(
-            String(value)
-          )}`
-      )
-      .join("&");
+    return (
+      "?" +
+      entries
+        .map(
+          ([key, value]) =>
+            `${encodeURIComponent(
+              key
+            )}=${encodeURIComponent(value)}`
+        )
+        .join("&")
+    );
   }
 
-
-  // ============================================================
-  // WEEX SIGNATURE
-  //
-  // timestamp + METHOD + requestPath + ?query + body
-  //
-  // HMAC SHA256 -> Base64
-  // ============================================================
+  // ==========================================================
+  // SIGNATURE
+  // ==========================================================
 
   createSignature({
     timestamp,
     method,
     requestPath,
     queryString = "",
-    bodyString = "",
+    body = "",
   }) {
-    const normalizedMethod =
-      String(method || "GET")
-        .trim()
-        .toUpperCase();
-
-    let message =
-      `${timestamp}${normalizedMethod}${requestPath}`;
-
-    if (queryString) {
-      message += `?${queryString}`;
-    }
-
-    if (bodyString) {
-      message += bodyString;
-    }
+    const prehash =
+      String(timestamp) +
+      String(method).toUpperCase() +
+      String(requestPath) +
+      String(queryString) +
+      String(body || "");
 
     return crypto
       .createHmac(
         "sha256",
         this.secretKey
       )
-      .update(message)
+      .update(prehash)
       .digest("base64");
   }
 
-
-  // ============================================================
-  // GENERIC REQUEST
-  // ============================================================
+  // ==========================================================
+  // REQUEST
+  // ==========================================================
 
   async request(
+    method,
     path,
-    options = {}
+    params = {},
+    authenticated = false
   ) {
-    const method =
-      String(
-        options.method || "GET"
-      )
-        .trim()
-        .toUpperCase();
+    const normalizedMethod =
+      String(method).toUpperCase();
 
-    const queryString =
-      options.queryString || "";
+    let queryString = "";
+    let body = "";
 
-    const bodyString =
-      options.bodyString || "";
+    if (
+      normalizedMethod === "GET" ||
+      normalizedMethod === "DELETE"
+    ) {
+      queryString =
+        this.buildQuery(params);
+    } else {
+      body = JSON.stringify(params);
+    }
 
-    const requiresAuth =
-      Boolean(
-        options.auth
-      );
+    const timestamp =
+      Date.now().toString();
 
     const url =
       `${this.baseUrl}${path}` +
-      (
-        queryString
-          ? `?${queryString}`
-          : ""
-      );
+      queryString;
 
     const headers = {
       "Content-Type":
         "application/json",
-      ...(options.headers || {}),
     };
 
-
-    // ==========================================================
-    // AUTHENTICATION
-    // ==========================================================
-
-    if (requiresAuth) {
+    if (
+      authenticated ||
+      this.authEnabled
+    ) {
       if (!this.authEnabled) {
         throw new Error(
-          "WEEX authentication is not configured. Set WEEX_API_KEY, WEEX_API_SECRET and WEEX_API_PASSPHRASE."
+          "WEEX authentication credentials are missing."
         );
       }
-
-      const timestamp =
-        String(
-          Date.now()
-        );
 
       const signature =
         this.createSignature({
           timestamp,
-          method,
-          requestPath:
-            path,
+          method: normalizedMethod,
+          requestPath: path,
           queryString,
-          bodyString,
+          body,
         });
 
       headers[
         "ACCESS-KEY"
-      ] =
-        this.apiKey;
+      ] = this.apiKey;
 
       headers[
         "ACCESS-SIGN"
-      ] =
-        signature;
+      ] = signature;
 
       headers[
         "ACCESS-PASSPHRASE"
-      ] =
-        this.passphrase;
+      ] = this.passphrase;
 
       headers[
         "ACCESS-TIMESTAMP"
-      ] =
-        timestamp;
+      ] = timestamp;
     }
 
+    let response;
 
-    const response =
-      await fetch(
-        url,
-        {
-          method,
-          headers,
-
-          body:
-            bodyString
-              ? bodyString
-              : undefined,
-        }
-      );
-
-
-    const text =
-      await response.text();
-
-
-    if (!response.ok) {
+    try {
+      response = await fetch(url, {
+        method: normalizedMethod,
+        headers,
+        body:
+          normalizedMethod === "GET" ||
+          normalizedMethod === "DELETE"
+            ? undefined
+            : body,
+      });
+    } catch (error) {
       throw new Error(
-        `WEEX HTTP ${response.status}: ${text}`
+        `WEEX NETWORK ERROR: ${error.message}`
       );
     }
 
+    const responseText =
+      await response.text();
 
     let data;
 
     try {
-      data =
-        JSON.parse(text);
-
+      data = responseText
+        ? JSON.parse(responseText)
+        : {};
     } catch {
-      throw new Error(
-        "WEEX returned invalid JSON"
-      );
+      data = responseText;
     }
 
+    if (!response.ok) {
+      throw new Error(
+        `WEEX HTTP ${response.status}: ${
+          typeof data === "string"
+            ? data
+            : JSON.stringify(data)
+        }`
+      );
+    }
 
     return data;
   }
 
-
-  // ============================================================
+  // ==========================================================
   // TICKER
-  // ============================================================
+  // ==========================================================
 
   async getTicker(symbol) {
     const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
+      String(symbol).toUpperCase();
 
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Ticker requires a symbol"
-      );
-    }
-
-    const queryString =
-      this.buildQuery({
-        symbol:
-          normalizedSymbol,
-      });
-
-    return this.request(
-      "/capi/v3/market/ticker/bookTicker",
+    const data = await this.request(
+      "GET",
+      "/capi/v3/market/ticker",
       {
-        method:
-          "GET",
-
-        queryString,
-
-        auth:
-          false,
-      }
+        symbol: normalizedSymbol,
+      },
+      false
     );
+
+    return data;
   }
 
-
-  // ============================================================
+  // ==========================================================
   // ORDER BOOK
-  // ============================================================
+  // ==========================================================
 
   async getOrderBook(
     symbol,
     limit = 200
   ) {
     const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Order book requires a symbol"
-      );
-    }
-
-    const queryString =
-      this.buildQuery({
-        symbol:
-          normalizedSymbol,
-
-        limit:
-          limit,
-      });
+      String(symbol).toUpperCase();
 
     return this.request(
+      "GET",
       "/capi/v3/market/depth",
       {
-        method:
-          "GET",
-
-        queryString,
-
-        auth:
-          false,
-      }
+        symbol: normalizedSymbol,
+        limit,
+      },
+      false
     );
   }
 
-
-  // ============================================================
-  // CURRENT MARKET PRICE
-  // ============================================================
+  // ==========================================================
+  // CURRENT PRICE
+  // ==========================================================
 
   async getCurrentPrice(symbol) {
+    const normalizedSymbol =
+      String(symbol).toUpperCase();
+
     const ticker =
       await this.getTicker(
-        symbol
+        normalizedSymbol
       );
 
-    let data =
-      ticker;
-
-    if (
-      Array.isArray(data)
-    ) {
-      data =
-        data[0];
+    if (!ticker) {
+      throw new Error(
+        `WEEX ticker returned empty response for ${normalizedSymbol}`
+      );
     }
 
-    if (
-      !data ||
-      typeof data !== "object"
-    ) {
-      return null;
-    }
-
-    let candidate =
-      data;
-
-    if (
-      Array.isArray(data.data)
-    ) {
-      candidate =
-        data.data[0] ||
-        {};
-    } else if (
-      data.data &&
-      typeof data.data === "object"
-    ) {
-      candidate =
-        data.data;
-    }
-
-    if (
-      candidate.ticker &&
-      typeof candidate.ticker === "object"
-    ) {
-      candidate =
-        candidate.ticker;
-    }
-
-    const bid =
+    const price =
       Number(
-        candidate.bidPrice ??
-        candidate.bid ??
-        data.bidPrice ??
-        data.bid ??
-        NaN
+        ticker.lastPrice ??
+        ticker.last ??
+        ticker.price ??
+        ticker.data?.lastPrice ??
+        ticker.data?.last
       );
 
-    const ask =
-      Number(
-        candidate.askPrice ??
-        candidate.ask ??
-        data.askPrice ??
-        data.ask ??
-        NaN
+    if (
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      throw new Error(
+        `Invalid WEEX price for ${normalizedSymbol}: ${JSON.stringify(
+          ticker
+        )}`
       );
-
-    const last =
-      Number(
-        candidate.lastPrice ??
-        candidate.last ??
-        candidate.price ??
-        data.lastPrice ??
-        data.last ??
-        data.price ??
-        NaN
-      );
-
-
-    if (
-      Number.isFinite(bid) &&
-      bid > 0 &&
-      Number.isFinite(ask) &&
-      ask > 0
-    ) {
-      return (
-        bid + ask
-      ) / 2;
     }
 
-
-    if (
-      Number.isFinite(bid) &&
-      bid > 0
-    ) {
-      return bid;
-    }
-
-
-    if (
-      Number.isFinite(ask) &&
-      ask > 0
-    ) {
-      return ask;
-    }
-
-
-    if (
-      Number.isFinite(last) &&
-      last > 0
-    ) {
-      return last;
-    }
-
-
-    return null;
+    return price;
   }
 
+// ==========================================================
+// GET LIVE POSITION
+// ==========================================================
 
-  // ============================================================
-  // REAL WEEX POSITION
-  //
-  // GET /capi/v3/account/position/singlePosition
-  // ============================================================
+async getPosition({
+  symbol,
+  positionSide,
+}) {
+  const normalizedSymbol =
+    String(symbol).toUpperCase();
 
-  async getPosition({
-    symbol,
-    positionSide,
-  }) {
-    const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
+  const normalizedPositionSide =
+    String(positionSide).toUpperCase();
 
-    const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
+  console.log(
+    `[Execution] GET POSITION ${normalizedSymbol} ${normalizedPositionSide}`
+  );
 
+  // WEEX V3 singlePosition uses SYMBOL only.
+  // The returned position direction is in `side`.
+  const data = await this.request(
+    "GET",
+    "/capi/v3/account/position/singlePosition",
+    {
+      symbol: normalizedSymbol,
+    },
+    true
+  );
 
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Get position requires a symbol"
-      );
-    }
+  let positions = [];
 
+  if (Array.isArray(data)) {
+    positions = data;
+  } else if (Array.isArray(data?.data)) {
+    positions = data.data;
+  } else if (
+    data?.data &&
+    typeof data.data === "object"
+  ) {
+    positions = [data.data];
+  } else if (
+    data &&
+    typeof data === "object"
+  ) {
+    positions = [data];
+  }
 
-    if (
-      normalizedPositionSide !==
-        "LONG" &&
-      normalizedPositionSide !==
-        "SHORT"
-    ) {
-      throw new Error(
-        "Get position positionSide must be LONG or SHORT"
-      );
-    }
+  const position = positions.find((item) => {
+    const itemSymbol =
+      String(
+        item?.symbol ?? ""
+      ).toUpperCase();
 
+    const itemSide =
+      String(
+        item?.side ??
+        item?.positionSide ??
+        ""
+      ).toUpperCase();
 
+    return (
+      itemSymbol === normalizedSymbol &&
+      itemSide === normalizedPositionSide
+    );
+  });
+
+  if (!position) {
     console.log(
-      `[Execution] GET POSITION ${normalizedSymbol} ${normalizedPositionSide}`
+      `[Execution] NO POSITION ${normalizedSymbol} ${normalizedPositionSide}`
     );
 
-
-    if (!this.authEnabled) {
-      console.log(
-        `[Execution] WEEX authentication is not configured`
-      );
-
-      return {
-        success:
-          false,
-
-        connected:
-          false,
-
-        authenticated:
-          false,
-
-        simulated:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        hasPosition:
-          false,
-
-        size:
-          0,
-
-        openValue:
-          0,
-
-        averageEntryPrice:
-          null,
-
-        reason:
-          "WEEX authentication is not configured",
-      };
-    }
-
-
-    try {
-      const queryString =
-        this.buildQuery({
-          symbol:
-            normalizedSymbol,
-        });
-
-
-      const response =
-        await this.request(
-          "/capi/v3/account/position/singlePosition",
-          {
-            method:
-              "GET",
-
-            queryString,
-
-            auth:
-              true,
-          }
-        );
-
-
-      // ========================================================
-      // WEEX normally returns an array.
-      // ========================================================
-
-      let positions =
-        response;
-
-
-      if (
-        response &&
-        Array.isArray(response.data)
-      ) {
-        positions =
-          response.data;
-      }
-
-
-      if (
-        response &&
-        response.data &&
-        typeof response.data === "object" &&
-        !Array.isArray(response.data)
-      ) {
-        positions =
-          [response.data];
-      }
-
-
-      if (
-        !Array.isArray(positions)
-      ) {
-        positions =
-          [];
-      }
-
-
-      // ========================================================
-      // Find requested side.
-      // ========================================================
-
-      const position =
-        positions.find(
-          (item) => {
-            if (
-              !item ||
-              typeof item !== "object"
-            ) {
-              return false;
-            }
-
-            const itemSymbol =
-              String(
-                item.symbol ||
-                ""
-              )
-                .trim()
-                .toUpperCase();
-
-            const itemSide =
-              String(
-                item.side ||
-                item.positionSide ||
-                ""
-              )
-                .trim()
-                .toUpperCase();
-
-            return (
-              itemSymbol ===
-                normalizedSymbol &&
-              itemSide ===
-                normalizedPositionSide
-            );
-          }
-        );
-
-
-      // ========================================================
-      // No matching position.
-      // ========================================================
-
-      if (!position) {
-        console.log(
-          `[Execution] WEEX POSITION ${normalizedSymbol} ${normalizedPositionSide} = FLAT`
-        );
-
-        return {
-          success:
-            true,
-
-          connected:
-            true,
-
-          authenticated:
-            true,
-
-          simulated:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          hasPosition:
-            false,
-
-          size:
-            0,
-
-          openValue:
-            0,
-
-          averageEntryPrice:
-            null,
-
-          raw:
-            response,
-        };
-      }
-
-
-      // ========================================================
-      // Parse size/open value.
-      // ========================================================
-
-      const size =
-        Number(
-          position.size ??
-          position.positionSize ??
-          0
-        );
-
-
-      const openValue =
-        Number(
-          position.openValue ??
-          position.positionValue ??
-          0
-        );
-
-
-      let averageEntryPrice =
-        null;
-
-
-      if (
-        Number.isFinite(size) &&
-        size > 0 &&
-        Number.isFinite(openValue) &&
-        openValue > 0
-      ) {
-        averageEntryPrice =
-          this.calculateAverageEntry({
-            openValue,
-            size,
-          });
-      }
-
-
-      // ========================================================
-      // Some responses may expose entry price directly.
-      // Use it only if available.
-      // ========================================================
-
-      if (
-        !Number.isFinite(
-          averageEntryPrice
-        )
-      ) {
-        const directAverage =
-          Number(
-            position.averageEntryPrice ??
-            position.avgEntryPrice ??
-            position.entryPrice ??
-            NaN
-          );
-
-        if (
-          Number.isFinite(
-            directAverage
-          ) &&
-          directAverage > 0
-        ) {
-          averageEntryPrice =
-            directAverage;
-        }
-      }
-
-
-      const hasPosition =
-        Number.isFinite(size) &&
-        size > 0;
-
-
-      console.log(
-        `[Execution] WEEX POSITION ${normalizedSymbol} ${normalizedPositionSide}`
-      );
-
-      console.log(
-        `[Execution] Size=${size}`
-      );
-
-      console.log(
-        `[Execution] OpenValue=${openValue}`
-      );
-
-      console.log(
-        `[Execution] AverageEntry=${averageEntryPrice ?? "UNKNOWN"}`
-      );
-
-
-      return {
-        success:
-          true,
-
-        connected:
-          true,
-
-        authenticated:
-          true,
-
-        simulated:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        hasPosition:
-          hasPosition,
-
-        size:
-          Number.isFinite(size)
-            ? size
-            : 0,
-
-        openValue:
-          Number.isFinite(openValue)
-            ? openValue
-            : 0,
-
-        averageEntryPrice:
-          Number.isFinite(
-            averageEntryPrice
-          )
-            ? averageEntryPrice
-            : null,
-
-        leverage:
-          position.leverage ??
-          null,
-
-        marginType:
-          position.marginType ??
-          null,
-
-        raw:
-          position,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] GET POSITION ERROR ${normalizedSymbol} ${normalizedPositionSide}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        connected:
-          true,
-
-        authenticated:
-          true,
-
-        simulated:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        hasPosition:
-          false,
-
-        size:
-          0,
-
-        openValue:
-          0,
-
-        averageEntryPrice:
-          null,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX position request failed",
-      };
-    }
+    return {
+      success: true,
+      connected: true,
+      authenticated:
+        this.authEnabled,
+      symbol: normalizedSymbol,
+      positionSide:
+        normalizedPositionSide,
+      hasPosition: false,
+      size: 0,
+      openValue: 0,
+      averageEntryPrice: null,
+      leverage: null,
+      marginType: null,
+      positionId: null,
+      raw: data,
+    };
   }
 
+  const size = Number(
+    position.size ??
+    position.positionSize ??
+    position.qty ??
+    position.quantity ??
+    0
+  );
 
-  // ============================================================
-  // LOCAL AVERAGE ENTRY CALCULATION
-  // ============================================================
+  const openValue = Number(
+    position.openValue ??
+    position.openAmount ??
+    0
+  );
+
+  let averageEntryPrice =
+    Number(
+      position.averageEntryPrice ??
+      position.avgPrice ??
+      position.avgEntryPrice ??
+      position.entryPrice ??
+      0
+    );
+
+  // WEEX V3 normally gives openValue + size.
+  // Calculate the real average entry when no direct
+  // average-entry field is returned.
+  if (
+    (!Number.isFinite(
+      averageEntryPrice
+    ) ||
+      averageEntryPrice <= 0) &&
+    Number.isFinite(size) &&
+    size > 0 &&
+    Number.isFinite(openValue) &&
+    openValue > 0
+  ) {
+    averageEntryPrice =
+      this.calculateAverageEntry({
+        openValue,
+        size,
+      });
+  }
+
+  const result = {
+    success: true,
+    connected: true,
+    authenticated:
+      this.authEnabled,
+
+    symbol:
+      normalizedSymbol,
+
+    positionSide:
+      normalizedPositionSide,
+
+    hasPosition:
+      Number.isFinite(size) &&
+      size > 0,
+
+    size:
+      Number.isFinite(size)
+        ? size
+        : 0,
+
+    openValue:
+      Number.isFinite(openValue)
+        ? openValue
+        : 0,
+
+    averageEntryPrice:
+      Number.isFinite(
+        averageEntryPrice
+      ) &&
+      averageEntryPrice > 0
+        ? averageEntryPrice
+        : null,
+
+    leverage:
+      position.leverage ??
+      null,
+
+    marginType:
+      position.marginType ??
+      position.margin_mode ??
+      position.marginMode ??
+      null,
+
+    positionId:
+      position.id ??
+      position.positionId ??
+      null,
+
+    raw: position,
+  };
+
+  console.log(
+    `[Execution] WEEX POSITION ${normalizedSymbol} ${normalizedPositionSide}`
+  );
+
+  console.log(
+    `[Execution] Size=${result.size}`
+  );
+
+  console.log(
+    `[Execution] OpenValue=${result.openValue}`
+  );
+
+  console.log(
+    `[Execution] AverageEntry=${result.averageEntryPrice}`
+  );
+
+  console.log(
+    `[Execution] Position ID=${result.positionId}`
+  );
+
+  return result;
+}
+
+
+  // ==========================================================
+  // CALCULATE AVERAGE ENTRY
+  // ==========================================================
 
   calculateAverageEntry({
     openValue,
@@ -874,169 +573,74 @@ class WeexExecution {
     const numericSize =
       Number(size);
 
-
     if (
       !Number.isFinite(
         numericOpenValue
       ) ||
-      numericOpenValue <= 0
-    ) {
-      return null;
-    }
-
-
-    if (
       !Number.isFinite(
         numericSize
       ) ||
+      numericOpenValue <= 0 ||
       numericSize <= 0
     ) {
       return null;
     }
 
-
-    const averageEntryPrice =
+    return (
       numericOpenValue /
-      numericSize;
-
-
-    if (
-      !Number.isFinite(
-        averageEntryPrice
-      ) ||
-      averageEntryPrice <= 0
-    ) {
-      return null;
-    }
-
-
-    return averageEntryPrice;
+      numericSize
+    );
   }
 
-
-  // ============================================================
+  // ==========================================================
   // OPEN POSITION
-  // WEEX V3 LIVE MARKET ORDER
-  //
-  // POST /capi/v3/order
-  // ============================================================
+  // ==========================================================
 
   async openPosition({
     symbol,
     direction,
-    contracts,
-    leverage,
-    marginUSDT,
-    actualNotional,
-    estimatedMargin,
+    quantity,
+    clientOrderId,
   }) {
     const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
+      String(symbol).toUpperCase();
 
     const normalizedDirection =
-      String(direction)
-        .trim()
-        .toUpperCase();
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Open position requires a symbol"
-      );
-    }
+      String(direction).toUpperCase();
 
     if (
-      normalizedDirection !== "LONG" &&
-      normalizedDirection !== "SHORT"
+      normalizedDirection !==
+        "LONG" &&
+      normalizedDirection !==
+        "SHORT"
     ) {
       throw new Error(
-        "Open position direction must be LONG or SHORT"
+        `Invalid position direction: ${direction}`
       );
     }
 
     const numericContracts =
-      Number(contracts);
-
-    const numericLeverage =
-      Number(leverage);
-
-    const numericMargin =
-      Number(marginUSDT);
-
-    const numericNotional =
-      Number(actualNotional);
-
-    const numericEstimatedMargin =
-      Number(estimatedMargin);
+      Number(quantity);
 
     if (
-      !Number.isFinite(numericContracts) ||
+      !Number.isFinite(
+        numericContracts
+      ) ||
       numericContracts <= 0
     ) {
       throw new Error(
-        "Open position requires valid contracts"
+        `Invalid order quantity: ${quantity}`
       );
     }
-
-    if (
-      !Number.isFinite(numericLeverage) ||
-      numericLeverage <= 0
-    ) {
-      throw new Error(
-        "Open position requires valid leverage"
-      );
-    }
-
-    if (
-      !Number.isFinite(numericMargin) ||
-      numericMargin <= 0
-    ) {
-      throw new Error(
-        "Open position requires valid margin"
-      );
-    }
-
-    if (
-      !Number.isFinite(numericNotional) ||
-      numericNotional <= 0
-    ) {
-      throw new Error(
-        "Open position requires valid actual notional"
-      );
-    }
-
-    if (
-      !Number.isFinite(numericEstimatedMargin) ||
-      numericEstimatedMargin <= 0
-    ) {
-      throw new Error(
-        "Open position requires valid estimated margin"
-      );
-    }
-
-    if (!this.authEnabled) {
-      throw new Error(
-        "WEEX authentication is required for LIVE openPosition"
-      );
-    }
-
-    // ==========================================================
-    // LONG  = BUY
-    // SHORT = SELL
-    // ==========================================================
 
     const orderSide =
-      normalizedDirection === "LONG"
+      normalizedDirection ===
+      "LONG"
         ? "BUY"
         : "SELL";
 
-    // ==========================================================
-    // WEEX client order ID
-    // Max 36 characters
-    // ==========================================================
-
     const newClientOrderId =
+      clientOrderId ||
       `adv-open-${Date.now()}`;
 
     console.log(
@@ -1059,383 +663,182 @@ class WeexExecution {
       `[Execution] Contracts=${numericContracts}`
     );
 
-    console.log(
-      `[Execution] Margin=${numericMargin} USDT`
-    );
-
-    console.log(
-      `[Execution] Leverage=${numericLeverage}x`
-    );
-
-    console.log(
-      `[Execution] Notional=${numericNotional.toFixed(4)} USDT`
-    );
-
-    console.log(
-      `[Execution] Estimated Margin=${numericEstimatedMargin.toFixed(4)} USDT`
-    );
-
-    console.log(
-      `[Execution] Client Order ID=${newClientOrderId}`
-    );
-
-    // ==========================================================
-    // IMPORTANT:
-    //
-    // We intentionally DO NOT send TP/SL with this order.
-    //
-    // AdvancedBot will create the full-position SL and TP
-    // separately after the real position exists.
-    // ==========================================================
-
     const body = {
-      symbol:
-        normalizedSymbol,
-
-      side:
-        orderSide,
-
+      symbol: normalizedSymbol,
+      side: orderSide,
       positionSide:
         normalizedDirection,
-
-      type:
-        "MARKET",
-
+      type: "MARKET",
       quantity:
         String(numericContracts),
-
-      newClientOrderId:
-        newClientOrderId,
-
-      reduceOnly:
-        false,
+      newClientOrderId,
+      reduceOnly: false,
     };
 
-    const bodyString =
-      JSON.stringify(body);
+    console.log(
+      `[Execution] OPEN REQUEST BODY`
+    );
 
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/order",
-          {
-            method:
-              "POST",
+    console.log(
+      JSON.stringify(body)
+    );
 
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-      console.log(
-        `[Execution] WEEX OPEN RESPONSE`
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/order",
+        body,
+        true
       );
 
-      console.log(
-        response
+    console.log(
+      `[Execution] WEEX OPEN RESPONSE`
+    );
+
+    console.log(response);
+
+    if (
+      response?.success === false
+    ) {
+      throw new Error(
+        `WEEX OPEN REJECTED: ${
+          response.errorMessage ||
+          response.errorCode ||
+          JSON.stringify(response)
+        }`
       );
-
-      if (
-        !response ||
-        response.success !== true
-      ) {
-        const errorCode =
-          response?.errorCode ||
-          "";
-
-        const errorMessage =
-          response?.errorMessage ||
-          response?.msg ||
-          response?.message ||
-          "WEEX rejected market order";
-
-        console.error(
-          `[Execution] LIVE OPEN REJECTED ${normalizedSymbol} ${normalizedDirection} | Code=${errorCode} | ${errorMessage}`
-        );
-
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          direction:
-            normalizedDirection,
-
-          side:
-            orderSide,
-
-          positionSide:
-            normalizedDirection,
-
-          contracts:
-            numericContracts,
-
-          leverage:
-            numericLeverage,
-
-          marginUSDT:
-            numericMargin,
-
-          actualNotional:
-            numericNotional,
-
-          estimatedMargin:
-            numericEstimatedMargin,
-
-          clientOrderId:
-            newClientOrderId,
-
-          errorCode:
-            errorCode,
-
-          errorMessage:
-            errorMessage,
-
-          raw:
-            response,
-        };
-      }
-
-      const orderId =
-        response.orderId ??
-        response.orderID ??
-        response.id ??
-        null;
-
-      console.log(
-        `[Execution] LIVE OPEN ACCEPTED ${normalizedSymbol} ${normalizedDirection}`
-      );
-
-      console.log(
-        `[Execution] WEEX Order ID=${orderId ?? "UNKNOWN"}`
-      );
-
-      console.log(
-        `[Execution] LIVE ORDER SENT SUCCESSFULLY`
-      );
-
-      return {
-        success:
-          true,
-
-        simulated:
-          false,
-
-        executed:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        direction:
-          normalizedDirection,
-
-        side:
-          orderSide,
-
-        positionSide:
-          normalizedDirection,
-
-        contracts:
-          numericContracts,
-
-        leverage:
-          numericLeverage,
-
-        marginUSDT:
-          numericMargin,
-
-        actualNotional:
-          numericNotional,
-
-        estimatedMargin:
-          numericEstimatedMargin,
-
-        clientOrderId:
-          newClientOrderId,
-
-        orderId:
-          orderId,
-
-        raw:
-          response,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] LIVE OPEN ERROR ${normalizedSymbol} ${normalizedDirection}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          false,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        direction:
-          normalizedDirection,
-
-        side:
-          orderSide,
-
-        positionSide:
-          normalizedDirection,
-
-        contracts:
-          numericContracts,
-
-        leverage:
-          numericLeverage,
-
-        marginUSDT:
-          numericMargin,
-
-        actualNotional:
-          numericNotional,
-
-        estimatedMargin:
-          numericEstimatedMargin,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX live market order request failed",
-      };
     }
+
+    if (
+      response?.success !== true
+    ) {
+      throw new Error(
+        `WEEX OPEN UNKNOWN RESPONSE: ${JSON.stringify(
+          response
+        )}`
+      );
+    }
+
+    console.log(
+      `[Execution] LIVE OPEN ACCEPTED ${normalizedSymbol} ${normalizedDirection}`
+    );
+
+    console.log(
+      `[Execution] WEEX Order ID=${response.orderId}`
+    );
+
+    console.log(
+      `[Execution] LIVE ORDER SENT SUCCESSFULLY`
+    );
+
+    return response;
   }
 
-
-  // ============================================================
-  // FULL POSITION STOP LOSS
-  // WEEX V3 LIVE
+  // ==========================================================
+  // PLACE FULL POSITION STOP LOSS
   //
-  // POST /capi/v3/placeTpSlOrder
-  // ============================================================
+  // IMPORTANT:
+  // quantity comes from the REAL WEEX position.
+  // NOTHING IS HARDCODED HERE.
+  // ==========================================================
 
   async placeFullPositionStopLoss({
     symbol,
     positionSide,
     triggerPrice,
-    triggerPriceType = "MARK_PRICE",
+    triggerPriceType = "CONTRACT_PRICE",
     clientAlgoId,
+    quantity,
   }) {
     const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
+      String(symbol).toUpperCase();
 
     const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
+      String(positionSide).toUpperCase();
+
+    const normalizedTriggerType =
+      String(
+        triggerPriceType
+      ).toUpperCase();
 
     const numericTriggerPrice =
       Number(triggerPrice);
 
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Stop loss requires a symbol"
-      );
-    }
+    const numericQuantity =
+      Number(quantity);
 
     if (
-      normalizedPositionSide !== "LONG" &&
-      normalizedPositionSide !== "SHORT"
-    ) {
-      throw new Error(
-        "Stop loss positionSide must be LONG or SHORT"
-      );
-    }
-
-    if (
-      !Number.isFinite(numericTriggerPrice) ||
+      !Number.isFinite(
+        numericTriggerPrice
+      ) ||
       numericTriggerPrice <= 0
     ) {
       throw new Error(
-        "Stop loss requires a valid trigger price"
+        `Invalid SL trigger price: ${triggerPrice}`
       );
     }
-
-    const normalizedTriggerType =
-      String(triggerPriceType)
-        .trim()
-        .toUpperCase();
 
     if (
-      normalizedTriggerType !== "MARK_PRICE" &&
-      normalizedTriggerType !== "CONTRACT_PRICE"
+      !Number.isFinite(
+        numericQuantity
+      ) ||
+      numericQuantity <= 0
     ) {
       throw new Error(
-        "Stop loss triggerPriceType must be MARK_PRICE or CONTRACT_PRICE"
+        `Invalid SL position quantity: ${quantity}`
       );
     }
+
+    if (
+      normalizedPositionSide !==
+        "LONG" &&
+      normalizedPositionSide !==
+        "SHORT"
+    ) {
+      throw new Error(
+        `Invalid SL position side: ${positionSide}`
+      );
+    }
+
+    if (
+      normalizedTriggerType !==
+        "CONTRACT_PRICE" &&
+      normalizedTriggerType !==
+        "MARK_PRICE"
+    ) {
+      throw new Error(
+        `Invalid SL trigger price type: ${triggerPriceType}`
+      );
+    }
+
+    await this.waitForTpSlRateLimit();
 
     const algoId =
-      String(
-        clientAlgoId ||
-        `adv-sl-${Date.now()}`
-      )
-        .trim();
-
-    if (
-      algoId.length < 1 ||
-      algoId.length > 36
-    ) {
-      throw new Error(
-        "Stop loss clientAlgoId must be 1-36 characters"
-      );
-    }
+      clientAlgoId ||
+      `adv-sl-${Date.now()}`;
 
     const body = {
-      symbol:
-        normalizedSymbol,
-
-      clientAlgoId:
-        algoId,
-
-      planType:
-        "STOP_LOSS",
-
+      symbol: normalizedSymbol,
+      clientAlgoId: algoId,
+      planType: "STOP_LOSS",
       triggerPrice:
         String(numericTriggerPrice),
+      executePrice: "0",
 
-      executePrice:
-        "0",
-
+      // ======================================================
+      // DYNAMIC REAL POSITION SIZE
+      // ======================================================
       quantity:
-        "0",
+        String(numericQuantity),
 
       positionSide:
         normalizedPositionSide,
-
       triggerPriceType:
         normalizedTriggerType,
 
-      reduceOnly:
-        false,
+      // SL must only reduce the existing position.
+      reduceOnly: true,
     };
-
-    const bodyString =
-      JSON.stringify(body);
 
     console.log(
       `[Execution] PLACE FULL-POSITION STOP LOSS`
@@ -1458,7 +861,7 @@ class WeexExecution {
     );
 
     console.log(
-      `[Execution] Quantity=0 (FULL POSITION)`
+      `[Execution] Quantity=${numericQuantity} (REAL WEEX POSITION)`
     );
 
     console.log(
@@ -1466,450 +869,175 @@ class WeexExecution {
     );
 
     console.log(
+      `[Execution] Reduce Only=true`
+    );
+
+    console.log(
       `[Execution] Client Algo ID=${algoId}`
     );
 
-    if (!this.authEnabled) {
-      console.log(
-        `[Execution] WEEX authentication is not configured`
+    console.log(
+      `[Execution] SL REQUEST BODY`
+    );
+
+    console.log(
+      JSON.stringify(body)
+    );
+
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/placeTpSlOrder",
+        body,
+        true
       );
 
-      return {
-        success:
-          false,
+    console.log(
+      `[Execution] WEEX SL RESPONSE`
+    );
 
-        simulated:
-          true,
+    console.log(response);
 
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "STOP_LOSS",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        fullPosition:
-          true,
-
-        reason:
-          "WEEX authentication is not configured",
-      };
-    }
-
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/placeTpSlOrder",
-          {
-            method:
-              "POST",
-
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-      console.log(
-        `[Execution] WEEX SL RESPONSE`
-      );
-
-      console.log(
+    const result =
+      this.extractAlgoResponse(
         response
       );
 
-      let result =
-        response;
-
-      if (
-        Array.isArray(response)
-      ) {
-        result =
-          response[0] ||
-          {};
-      }
-
-      if (
-        response &&
-        Array.isArray(response.data)
-      ) {
-        result =
-          response.data[0] ||
-          {};
-      }
-
-      if (
-        !result ||
-        typeof result !== "object"
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "STOP_LOSS",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          raw:
-            response,
-
-          reason:
-            "WEEX returned an invalid SL response",
-        };
-      }
-
-      if (
-        result.success !== true
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "STOP_LOSS",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          executePrice:
-            0,
-
-          quantity:
-            "0",
-
-          clientAlgoId:
-            algoId,
-
-          errorCode:
-            result.errorCode ||
-            "",
-
-          errorMessage:
-            result.errorMessage ||
-            result.msg ||
-            result.message ||
-            "WEEX rejected stop loss order",
-
-          raw:
-            response,
-        };
-      }
-
-      const orderId =
-        result.orderId ??
-        result.orderID ??
-        result.id ??
-        null;
-
-      if (
-        orderId === null ||
-        orderId === undefined ||
-        String(orderId).trim() === ""
-      ) {
-        console.error(
-          `[Execution] WEEX accepted SL but returned no orderId`
-        );
-
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "STOP_LOSS",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          clientAlgoId:
-            algoId,
-
-          raw:
-            response,
-
-          reason:
-            "WEEX accepted SL but no orderId was returned",
-        };
-      }
-
-      console.log(
-        `[Execution] WEEX SL CREATED SUCCESSFULLY`
+    if (!result.success) {
+      throw new Error(
+        `WEEX STOP LOSS REJECTED: ${
+          result.errorMessage ||
+          result.errorCode ||
+          JSON.stringify(response)
+        }`
       );
-
-      console.log(
-        `[Execution] SL Order ID=${orderId}`
-      );
-
-      return {
-        success:
-          true,
-
-        simulated:
-          false,
-
-        executed:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "STOP_LOSS",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        orderId:
-          orderId,
-
-        fullPosition:
-          true,
-
-        raw:
-          response,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] PLACE STOP LOSS ERROR ${normalizedSymbol} ${normalizedPositionSide}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          false,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "STOP_LOSS",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX SL placement request failed",
-      };
     }
+
+    console.log(
+      `[Execution] STOP LOSS ACCEPTED ${normalizedSymbol} ${normalizedPositionSide}`
+    );
+
+    console.log(
+      `[Execution] SL Order ID=${result.orderId}`
+    );
+
+    return {
+      success: true,
+      symbol: normalizedSymbol,
+      positionSide:
+        normalizedPositionSide,
+      triggerPrice:
+        numericTriggerPrice,
+      triggerPriceType:
+        normalizedTriggerType,
+      quantity:
+        numericQuantity,
+      fullPosition: true,
+      reduceOnly: true,
+      clientAlgoId: algoId,
+      orderId: result.orderId,
+      raw: response,
+    };
   }
 
-
-  // ============================================================
-  // FULL POSITION TAKE PROFIT
-  // WEEX V3 LIVE
-  //
-  // POST /capi/v3/placeTpSlOrder
-  // ============================================================
+  // ==========================================================
+  // PLACE FULL POSITION TAKE PROFIT
+  // ==========================================================
 
   async placeFullPositionTakeProfit({
     symbol,
     positionSide,
     triggerPrice,
-    triggerPriceType = "MARK_PRICE",
+    triggerPriceType = "CONTRACT_PRICE",
     clientAlgoId,
+    quantity,
   }) {
     const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
+      String(symbol).toUpperCase();
 
     const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
+      String(positionSide).toUpperCase();
+
+    const normalizedTriggerType =
+      String(
+        triggerPriceType
+      ).toUpperCase();
 
     const numericTriggerPrice =
       Number(triggerPrice);
 
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Take profit requires a symbol"
-      );
-    }
+    const numericQuantity =
+      Number(quantity);
 
     if (
-      normalizedPositionSide !== "LONG" &&
-      normalizedPositionSide !== "SHORT"
-    ) {
-      throw new Error(
-        "Take profit positionSide must be LONG or SHORT"
-      );
-    }
-
-    if (
-      !Number.isFinite(numericTriggerPrice) ||
+      !Number.isFinite(
+        numericTriggerPrice
+      ) ||
       numericTriggerPrice <= 0
     ) {
       throw new Error(
-        "Take profit requires a valid trigger price"
+        `Invalid TP trigger price: ${triggerPrice}`
       );
     }
-
-    const normalizedTriggerType =
-      String(triggerPriceType)
-        .trim()
-        .toUpperCase();
 
     if (
-      normalizedTriggerType !== "MARK_PRICE" &&
-      normalizedTriggerType !== "CONTRACT_PRICE"
+      !Number.isFinite(
+        numericQuantity
+      ) ||
+      numericQuantity <= 0
     ) {
       throw new Error(
-        "Take profit triggerPriceType must be MARK_PRICE or CONTRACT_PRICE"
+        `Invalid TP position quantity: ${quantity}`
       );
     }
+
+    if (
+      normalizedPositionSide !==
+        "LONG" &&
+      normalizedPositionSide !==
+        "SHORT"
+    ) {
+      throw new Error(
+        `Invalid TP position side: ${positionSide}`
+      );
+    }
+
+    if (
+      normalizedTriggerType !==
+        "CONTRACT_PRICE" &&
+      normalizedTriggerType !==
+        "MARK_PRICE"
+    ) {
+      throw new Error(
+        `Invalid TP trigger price type: ${triggerPriceType}`
+      );
+    }
+
+    await this.waitForTpSlRateLimit();
 
     const algoId =
-      String(
-        clientAlgoId ||
-        `adv-tp-${Date.now()}`
-      )
-        .trim();
-
-    if (
-      algoId.length < 1 ||
-      algoId.length > 36
-    ) {
-      throw new Error(
-        "Take profit clientAlgoId must be 1-36 characters"
-      );
-    }
+      clientAlgoId ||
+      `adv-tp-${Date.now()}`;
 
     const body = {
-      symbol:
-        normalizedSymbol,
-
-      clientAlgoId:
-        algoId,
-
-      planType:
-        "TAKE_PROFIT",
-
+      symbol: normalizedSymbol,
+      clientAlgoId: algoId,
+      planType: "TAKE_PROFIT",
       triggerPrice:
         String(numericTriggerPrice),
+      executePrice: "0",
 
-      executePrice:
-        "0",
-
+      // Use the real live position quantity.
       quantity:
-        "0",
+        String(numericQuantity),
 
       positionSide:
         normalizedPositionSide,
-
       triggerPriceType:
         normalizedTriggerType,
 
-      reduceOnly:
-        false,
+      reduceOnly: true,
     };
-
-    const bodyString =
-      JSON.stringify(body);
 
     console.log(
       `[Execution] PLACE FULL-POSITION TAKE PROFIT`
@@ -1932,1280 +1060,415 @@ class WeexExecution {
     );
 
     console.log(
-      `[Execution] Quantity=0 (FULL POSITION)`
+      `[Execution] Quantity=${numericQuantity} (REAL WEEX POSITION)`
     );
 
     console.log(
       `[Execution] Execute Price=0 (MARKET)`
+    );
+
+    console.log(
+      `[Execution] Reduce Only=true`
     );
 
     console.log(
       `[Execution] Client Algo ID=${algoId}`
     );
 
-    if (!this.authEnabled) {
-      console.log(
-        `[Execution] WEEX authentication is not configured`
+    console.log(
+      `[Execution] TP REQUEST BODY`
+    );
+
+    console.log(
+      JSON.stringify(body)
+    );
+
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/placeTpSlOrder",
+        body,
+        true
       );
 
-      return {
-        success:
-          false,
+    console.log(
+      `[Execution] WEEX TP RESPONSE`
+    );
 
-        simulated:
-          true,
+    console.log(response);
 
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "TAKE_PROFIT",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        fullPosition:
-          true,
-
-        reason:
-          "WEEX authentication is not configured",
-      };
-    }
-
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/placeTpSlOrder",
-          {
-            method:
-              "POST",
-
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-      console.log(
-        `[Execution] WEEX TP RESPONSE`
-      );
-
-      console.log(
+    const result =
+      this.extractAlgoResponse(
         response
       );
 
-      let result =
-        response;
-
-      if (
-        Array.isArray(response)
-      ) {
-        result =
-          response[0] ||
-          {};
-      }
-
-      if (
-        response &&
-        Array.isArray(response.data)
-      ) {
-        result =
-          response.data[0] ||
-          {};
-      }
-
-      if (
-        !result ||
-        typeof result !== "object"
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "TAKE_PROFIT",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          raw:
-            response,
-
-          reason:
-            "WEEX returned an invalid TP response",
-        };
-      }
-
-      if (
-        result.success !== true
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "TAKE_PROFIT",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          executePrice:
-            0,
-
-          quantity:
-            "0",
-
-          clientAlgoId:
-            algoId,
-
-          errorCode:
-            result.errorCode ||
-            "",
-
-          errorMessage:
-            result.errorMessage ||
-            result.msg ||
-            result.message ||
-            "WEEX rejected take profit order",
-
-          raw:
-            response,
-        };
-      }
-
-      const orderId =
-        result.orderId ??
-        result.orderID ??
-        result.id ??
-        null;
-
-      if (
-        orderId === null ||
-        orderId === undefined ||
-        String(orderId).trim() === ""
-      ) {
-        console.error(
-          `[Execution] WEEX accepted TP but returned no orderId`
-        );
-
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          planType:
-            "TAKE_PROFIT",
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          clientAlgoId:
-            algoId,
-
-          raw:
-            response,
-
-          reason:
-            "WEEX accepted TP but no orderId was returned",
-        };
-      }
-
-      console.log(
-        `[Execution] WEEX TP CREATED SUCCESSFULLY`
-      );
-
-      console.log(
-        `[Execution] TP Order ID=${orderId}`
-      );
-
-      return {
-        success:
-          true,
-
-        simulated:
-          false,
-
-        executed:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "TAKE_PROFIT",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        orderId:
-          orderId,
-
-        fullPosition:
-          true,
-
-        raw:
-          response,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] PLACE TAKE PROFIT ERROR ${normalizedSymbol} ${normalizedPositionSide}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          false,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        planType:
-          "TAKE_PROFIT",
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        quantity:
-          "0",
-
-        clientAlgoId:
-          algoId,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX TP placement request failed",
-      };
-    }
-  }
-
-
-  // ============================================================
-  // MODIFY FULL POSITION STOP LOSS
-  // WEEX V3 LIVE
-  //
-  // POST /capi/v3/modifyTpSlOrder
-  // ============================================================
-
-  async modifyFullPositionStopLoss({
-    orderId,
-    symbol,
-    positionSide,
-    triggerPrice,
-    triggerPriceType = "MARK_PRICE",
-  }) {
-    const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
-
-    const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
-
-    const numericTriggerPrice =
-      Number(triggerPrice);
-
-    const numericOrderId =
-      String(orderId || "").trim();
-
-
-    if (!numericOrderId) {
+    if (!result.success) {
       throw new Error(
-        "Modify stop loss requires an orderId"
+        `WEEX TAKE PROFIT REJECTED: ${
+          result.errorMessage ||
+          result.errorCode ||
+          JSON.stringify(response)
+        }`
       );
     }
-
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Modify stop loss requires a symbol"
-      );
-    }
-
-
-    if (
-      normalizedPositionSide !==
-        "LONG" &&
-      normalizedPositionSide !==
-        "SHORT"
-    ) {
-      throw new Error(
-        "Modify stop loss positionSide must be LONG or SHORT"
-      );
-    }
-
-
-    if (
-      !Number.isFinite(
-        numericTriggerPrice
-      ) ||
-      numericTriggerPrice <= 0
-    ) {
-      throw new Error(
-        "Modify stop loss requires a valid trigger price"
-      );
-    }
-
-
-    const normalizedTriggerType =
-      String(
-        triggerPriceType
-      )
-        .trim()
-        .toUpperCase();
-
-
-    if (
-      normalizedTriggerType !==
-        "MARK_PRICE" &&
-      normalizedTriggerType !==
-        "CONTRACT_PRICE"
-    ) {
-      throw new Error(
-        "Modify stop loss triggerPriceType must be MARK_PRICE or CONTRACT_PRICE"
-      );
-    }
-
-
-    const body = {
-      orderId:
-        numericOrderId,
-
-      triggerPrice:
-        String(numericTriggerPrice),
-
-      executePrice:
-        "0",
-
-      triggerPriceType:
-        normalizedTriggerType,
-    };
-
-
-    const bodyString =
-      JSON.stringify(body);
-
 
     console.log(
-      `[Execution] MODIFY FULL-POSITION STOP LOSS`
+      `[Execution] TAKE PROFIT ACCEPTED ${normalizedSymbol} ${normalizedPositionSide}`
     );
 
     console.log(
-      `[Execution] Symbol=${normalizedSymbol}`
+      `[Execution] TP Order ID=${result.orderId}`
     );
 
-    console.log(
-      `[Execution] Position Side=${normalizedPositionSide}`
-    );
-
-    console.log(
-      `[Execution] SL Order ID=${numericOrderId}`
-    );
-
-    console.log(
-      `[Execution] New Trigger Price=${numericTriggerPrice}`
-    );
-
-    console.log(
-      `[Execution] Trigger Type=${normalizedTriggerType}`
-    );
-
-    console.log(
-      `[Execution] Execute Price=0 (MARKET)`
-    );
-
-
-    if (!this.authEnabled) {
-      console.log(
-        `[Execution] WEEX authentication is not configured`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          true,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        reason:
-          "WEEX authentication is not configured",
-      };
-    }
-
-
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/modifyTpSlOrder",
-          {
-            method:
-              "POST",
-
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-
-      console.log(
-        `[Execution] WEEX SL MODIFY RESPONSE`
-      );
-
-      console.log(
-        response
-      );
-
-
-      if (
-        !response ||
-        response.success !== true
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          orderId:
-            numericOrderId,
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          executePrice:
-            0,
-
-          raw:
-            response,
-
-          reason:
-            response?.errorMessage ||
-            response?.msg ||
-            response?.message ||
-            "WEEX rejected SL modification",
-        };
-      }
-
-
-      console.log(
-        `[Execution] WEEX SL MODIFIED SUCCESSFULLY`
-      );
-
-
-      return {
-        success:
-          true,
-
-        simulated:
-          false,
-
-        executed:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        raw:
-          response,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] MODIFY STOP LOSS ERROR ${normalizedSymbol} ${normalizedPositionSide}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          false,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX SL modification request failed",
-      };
-    }
-  }
-
-
-  // ============================================================
-  // MODIFY FULL POSITION TAKE PROFIT
-  // WEEX V3
-  //
-  // POST /capi/v3/modifyTpSlOrder
-  // ============================================================
-
-  async modifyFullPositionTakeProfit({
-    orderId,
-    symbol,
-    positionSide,
-    triggerPrice,
-    triggerPriceType = "MARK_PRICE",
-  }) {
-    const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
-
-    const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
-
-    const numericTriggerPrice =
-      Number(triggerPrice);
-
-    const numericOrderId =
-      String(orderId || "").trim();
-
-
-    if (!numericOrderId) {
-      throw new Error(
-        "Modify take profit requires an orderId"
-      );
-    }
-
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Modify take profit requires a symbol"
-      );
-    }
-
-
-    if (
-      normalizedPositionSide !==
-        "LONG" &&
-      normalizedPositionSide !==
-        "SHORT"
-    ) {
-      throw new Error(
-        "Modify take profit positionSide must be LONG or SHORT"
-      );
-    }
-
-
-    if (
-      !Number.isFinite(
-        numericTriggerPrice
-      ) ||
-      numericTriggerPrice <= 0
-    ) {
-      throw new Error(
-        "Modify take profit requires a valid trigger price"
-      );
-    }
-
-
-    const normalizedTriggerType =
-      String(
-        triggerPriceType
-      )
-        .trim()
-        .toUpperCase();
-
-
-    if (
-      normalizedTriggerType !==
-        "MARK_PRICE" &&
-      normalizedTriggerType !==
-        "CONTRACT_PRICE"
-    ) {
-      throw new Error(
-        "Modify take profit triggerPriceType must be MARK_PRICE or CONTRACT_PRICE"
-      );
-    }
-
-
-    const body = {
-      orderId:
-        numericOrderId,
-
-      triggerPrice:
-        String(numericTriggerPrice),
-
-      executePrice:
-        "0",
-
-      triggerPriceType:
-        normalizedTriggerType,
-    };
-
-
-    const bodyString =
-      JSON.stringify(body);
-
-
-    console.log(
-      `[Execution] MODIFY FULL-POSITION TAKE PROFIT`
-    );
-
-    console.log(
-      `[Execution] Symbol=${normalizedSymbol}`
-    );
-
-    console.log(
-      `[Execution] Position Side=${normalizedPositionSide}`
-    );
-
-    console.log(
-      `[Execution] TP Order ID=${numericOrderId}`
-    );
-
-    console.log(
-      `[Execution] New Trigger Price=${numericTriggerPrice}`
-    );
-
-    console.log(
-      `[Execution] Trigger Type=${normalizedTriggerType}`
-    );
-
-    console.log(
-      `[Execution] Execute Price=0 (MARKET)`
-    );
-
-
-    if (!this.authEnabled) {
-      console.log(
-        `[Execution] WEEX authentication is not configured`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          true,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        reason:
-          "WEEX authentication is not configured",
-      };
-    }
-
-
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/modifyTpSlOrder",
-          {
-            method:
-              "POST",
-
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-
-      console.log(
-        `[Execution] WEEX TP MODIFY RESPONSE`
-      );
-
-      console.log(
-        response
-      );
-
-
-      if (
-        !response ||
-        response.success !== true
-      ) {
-        return {
-          success:
-            false,
-
-          simulated:
-            false,
-
-          executed:
-            false,
-
-          symbol:
-            normalizedSymbol,
-
-          positionSide:
-            normalizedPositionSide,
-
-          orderId:
-            numericOrderId,
-
-          triggerPrice:
-            numericTriggerPrice,
-
-          triggerPriceType:
-            normalizedTriggerType,
-
-          executePrice:
-            0,
-
-          raw:
-            response,
-
-          reason:
-            response?.errorMessage ||
-            response?.msg ||
-            response?.message ||
-            "WEEX rejected TP modification",
-        };
-      }
-
-
-      console.log(
-        `[Execution] WEEX TP MODIFIED SUCCESSFULLY`
-      );
-
-
-      return {
-        success:
-          true,
-
-        simulated:
-          false,
-
-        executed:
-          true,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        raw:
-          response,
-      };
-
-    } catch (error) {
-      console.error(
-        `[Execution] MODIFY TAKE PROFIT ERROR ${normalizedSymbol} ${normalizedPositionSide}: ${error.message}`
-      );
-
-      return {
-        success:
-          false,
-
-        simulated:
-          false,
-
-        executed:
-          false,
-
-        symbol:
-          normalizedSymbol,
-
-        positionSide:
-          normalizedPositionSide,
-
-        orderId:
-          numericOrderId,
-
-        triggerPrice:
-          numericTriggerPrice,
-
-        triggerPriceType:
-          normalizedTriggerType,
-
-        executePrice:
-          0,
-
-        error:
-          error.message,
-
-        reason:
-          "WEEX TP modification request failed",
-      };
-    }
-  }
-
-
-  // ============================================================
-  // DEBUG FULL POSITION STOP LOSS
-  // TEMPORARY TEST ONLY
-  //
-  // IMPORTANT:
-  // This method is INSIDE the class.
-  // ============================================================
-
-  async debugPlaceStopLoss({
-    symbol,
-    positionSide,
-    triggerPrice,
-  }) {
-    const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
-
-    const normalizedPositionSide =
-      String(positionSide)
-        .trim()
-        .toUpperCase();
-
-    const numericTriggerPrice =
-      Number(triggerPrice);
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Debug SL requires a symbol"
-      );
-    }
-
-    if (
-      normalizedPositionSide !==
-        "LONG" &&
-      normalizedPositionSide !==
-        "SHORT"
-    ) {
-      throw new Error(
-        "Debug SL positionSide must be LONG or SHORT"
-      );
-    }
-
-    if (
-      !Number.isFinite(
-        numericTriggerPrice
-      ) ||
-      numericTriggerPrice <= 0
-    ) {
-      throw new Error(
-        "Debug SL requires a valid trigger price"
-      );
-    }
-
-    const clientAlgoId =
-      `debug-sl-${Date.now()}`;
-
-    const body = {
-      symbol:
-        normalizedSymbol,
-
-      clientAlgoId:
-        clientAlgoId,
-
-      planType:
-        "STOP_LOSS",
-
-      triggerPrice:
-        String(numericTriggerPrice),
-
-      executePrice:
-        "0",
-
-      quantity:
-        "0",
-
+    return {
+      success: true,
+      symbol: normalizedSymbol,
       positionSide:
         normalizedPositionSide,
-
+      triggerPrice:
+        numericTriggerPrice,
       triggerPriceType:
-        "MARK_PRICE",
-
-      reduceOnly:
-        false,
+        normalizedTriggerType,
+      quantity:
+        numericQuantity,
+      fullPosition: true,
+      reduceOnly: true,
+      clientAlgoId: algoId,
+      orderId: result.orderId,
+      raw: response,
     };
-
-    const bodyString =
-      JSON.stringify(body);
-
-    console.log("");
-
-    console.log(
-      "============================================================"
-    );
-
-    console.log(
-      "[DEBUG] DIRECT WEEX SL TEST"
-    );
-
-    console.log(
-      "============================================================"
-    );
-
-    console.log(
-      `[DEBUG] Symbol=${normalizedSymbol}`
-    );
-
-    console.log(
-      `[DEBUG] Position Side=${normalizedPositionSide}`
-    );
-
-    console.log(
-      `[DEBUG] Trigger Price=${numericTriggerPrice}`
-    );
-
-    console.log(
-      `[DEBUG] Client Algo ID=${clientAlgoId}`
-    );
-
-    console.log(
-      `[DEBUG] Request Body=${bodyString}`
-    );
-
-    try {
-      const response =
-        await this.request(
-          "/capi/v3/placeTpSlOrder",
-          {
-            method:
-              "POST",
-
-            bodyString:
-              bodyString,
-
-            auth:
-              true,
-          }
-        );
-
-      console.log(
-        "[DEBUG] WEEX RAW SL RESPONSE"
-      );
-
-      console.log(
-        JSON.stringify(
-          response,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "============================================================"
-      );
-
-      console.log(
-        "[DEBUG] DIRECT WEEX SL TEST COMPLETE"
-      );
-
-      console.log(
-        "============================================================"
-      );
-
-      console.log("");
-
-      return response;
-
-    } catch (error) {
-      console.error(
-        `[DEBUG] DIRECT WEEX SL TEST ERROR: ${error.message}`
-      );
-
-      console.log(
-        "============================================================"
-      );
-
-      console.log(
-        "[DEBUG] DIRECT WEEX SL TEST FAILED"
-      );
-
-      console.log(
-        "============================================================"
-      );
-
-      console.log("");
-
-      return {
-        success:
-          false,
-
-        error:
-          error.message,
-      };
-    }
   }
 
+  // ==========================================================
+  // EXTRACT TP/SL RESPONSE
+  // ==========================================================
 
-  // ============================================================
-  // CLOSE POSITION
-  // CURRENTLY SIMULATED
-  // ============================================================
+  extractAlgoResponse(response) {
+    let item = response;
 
-  async closePosition({
-    symbol,
-    direction,
-    quantity,
-  }) {
-    const normalizedSymbol =
-      String(symbol)
-        .trim()
-        .toUpperCase();
-
-    const normalizedDirection =
-      String(direction)
-        .trim()
-        .toUpperCase();
-
-    const numericQuantity =
-      Number(quantity);
-
-
-    if (!normalizedSymbol) {
-      throw new Error(
-        "Close position requires a symbol"
-      );
+    if (Array.isArray(response)) {
+      item = response[0];
     }
-
 
     if (
-      normalizedDirection !==
-        "LONG" &&
-      normalizedDirection !==
-        "SHORT"
+      response?.data &&
+      Array.isArray(response.data)
     ) {
-      throw new Error(
-        "Close position direction must be LONG or SHORT"
-      );
+      item = response.data[0];
+    } else if (
+      response?.data &&
+      typeof response.data === "object"
+    ) {
+      item = response.data;
     }
 
-
-    if (
-      !Number.isFinite(
-        numericQuantity
-      ) ||
-      numericQuantity <= 0
-    ) {
-      throw new Error(
-        "Close position requires a valid quantity"
-      );
+    if (!item) {
+      return {
+        success: false,
+        orderId: null,
+        errorCode:
+          "EMPTY_RESPONSE",
+        errorMessage:
+          "WEEX returned an empty TP/SL response.",
+      };
     }
-
-
-    console.log(
-      `[Execution] SIMULATED CLOSE ${normalizedDirection} ${normalizedSymbol} quantity=${numericQuantity}`
-    );
-
 
     return {
       success:
-        false,
+        item.success === true,
 
-      simulated:
-        true,
+      orderId:
+        item.orderId ??
+        item.orderID ??
+        null,
 
-      executed:
-        false,
+      errorCode:
+        item.errorCode ??
+        null,
 
+      errorMessage:
+        item.errorMessage ??
+        null,
+
+      raw: response,
+    };
+  }
+
+  // ==========================================================
+  // MODIFY STOP LOSS
+  // ==========================================================
+
+  async modifyFullPositionStopLoss({
+    orderId,
+    triggerPrice,
+    triggerPriceType = "CONTRACT_PRICE",
+  }) {
+    const numericOrderId =
+      orderId;
+
+    const numericTriggerPrice =
+      Number(triggerPrice);
+
+    if (
+      numericTriggerPrice <= 0 ||
+      !Number.isFinite(
+        numericTriggerPrice
+      )
+    ) {
+      throw new Error(
+        `Invalid SL trigger price: ${triggerPrice}`
+      );
+    }
+
+    await this.waitForTpSlRateLimit();
+
+    const body = {
+      orderId:
+        numericOrderId,
+      triggerPrice:
+        String(numericTriggerPrice),
+      executePrice: "0",
+      triggerPriceType:
+        String(
+          triggerPriceType
+        ).toUpperCase(),
+    };
+
+    console.log(
+      `[Execution] MODIFY STOP LOSS`
+    );
+
+    console.log(
+      `[Execution] Order ID=${numericOrderId}`
+    );
+
+    console.log(
+      `[Execution] Trigger Price=${numericTriggerPrice}`
+    );
+
+    console.log(
+      `[Execution] MODIFY SL REQUEST BODY`
+    );
+
+    console.log(
+      JSON.stringify(body)
+    );
+
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/modifyTpSlOrder",
+        body,
+        true
+      );
+
+    console.log(
+      `[Execution] WEEX MODIFY SL RESPONSE`
+    );
+
+    console.log(response);
+
+    if (
+      response?.success === false
+    ) {
+      throw new Error(
+        `WEEX MODIFY STOP LOSS REJECTED: ${
+          response.errorMessage ||
+          response.errorCode ||
+          JSON.stringify(response)
+        }`
+      );
+    }
+
+    return {
+      success: true,
+      orderId:
+        numericOrderId,
+      triggerPrice:
+        numericTriggerPrice,
+      raw: response,
+    };
+  }
+
+  // ==========================================================
+  // MODIFY TAKE PROFIT
+  // ==========================================================
+
+  async modifyFullPositionTakeProfit({
+    orderId,
+    triggerPrice,
+    triggerPriceType = "CONTRACT_PRICE",
+  }) {
+    const numericOrderId =
+      orderId;
+
+    const numericTriggerPrice =
+      Number(triggerPrice);
+
+    if (
+      numericTriggerPrice <= 0 ||
+      !Number.isFinite(
+        numericTriggerPrice
+      )
+    ) {
+      throw new Error(
+        `Invalid TP trigger price: ${triggerPrice}`
+      );
+    }
+
+    await this.waitForTpSlRateLimit();
+
+    const body = {
+      orderId:
+        numericOrderId,
+      triggerPrice:
+        String(numericTriggerPrice),
+      executePrice: "0",
+      triggerPriceType:
+        String(
+          triggerPriceType
+        ).toUpperCase(),
+    };
+
+    console.log(
+      `[Execution] MODIFY TAKE PROFIT`
+    );
+
+    console.log(
+      `[Execution] Order ID=${numericOrderId}`
+    );
+
+    console.log(
+      `[Execution] Trigger Price=${numericTriggerPrice}`
+    );
+
+    console.log(
+      `[Execution] MODIFY TP REQUEST BODY`
+    );
+
+    console.log(
+      JSON.stringify(body)
+    );
+
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/modifyTpSlOrder",
+        body,
+        true
+      );
+
+    console.log(
+      `[Execution] WEEX MODIFY TP RESPONSE`
+    );
+
+    console.log(response);
+
+    if (
+      response?.success === false
+    ) {
+      throw new Error(
+        `WEEX MODIFY TAKE PROFIT REJECTED: ${
+          response.errorMessage ||
+          response.errorCode ||
+          JSON.stringify(response)
+        }`
+      );
+    }
+
+    return {
+      success: true,
+      orderId:
+        numericOrderId,
+      triggerPrice:
+        numericTriggerPrice,
+      raw: response,
+    };
+  }
+
+  // ==========================================================
+  // CLOSE POSITION
+  // ==========================================================
+
+  async closePosition({
+    symbol,
+    positionSide,
+    positionId,
+  }) {
+    const normalizedSymbol =
+      String(symbol).toUpperCase();
+
+    const normalizedPositionSide =
+      String(positionSide).toUpperCase();
+
+    const body = {
       symbol:
         normalizedSymbol,
+    };
 
-      direction:
-        normalizedDirection,
+    if (
+      positionId !== undefined &&
+      positionId !== null &&
+      positionId !== ""
+    ) {
+      body.positionId =
+        String(positionId);
+    }
 
-      quantity:
-        numericQuantity,
+    console.log(
+      `[Execution] LIVE CLOSE ${normalizedSymbol} ${normalizedPositionSide}`
+    );
 
-      reason:
-        "WEEX close execution is not connected yet",
+    console.log(
+      `[Execution] CLOSE REQUEST BODY`
+    );
+
+    console.log(
+      JSON.stringify(body)
+    );
+
+    const response =
+      await this.request(
+        "POST",
+        "/capi/v3/closePositions",
+        body,
+        true
+      );
+
+    console.log(
+      `[Execution] WEEX CLOSE RESPONSE`
+    );
+
+    console.log(response);
+
+    if (
+      response?.success === false
+    ) {
+      throw new Error(
+        `WEEX CLOSE REJECTED: ${
+          response.errorMessage ||
+          response.errorCode ||
+          JSON.stringify(response)
+        }`
+      );
+    }
+
+    console.log(
+      `[Execution] LIVE CLOSE ACCEPTED ${normalizedSymbol} ${normalizedPositionSide}`
+    );
+
+    return {
+      success: true,
+      symbol: normalizedSymbol,
+      positionSide:
+        normalizedPositionSide,
+      raw: response,
     };
   }
 }
 
+// ============================================================
+// EXPORT
+// ============================================================
 
-module.exports =
-  WeexExecution;
+module.exports = WeexExecution;

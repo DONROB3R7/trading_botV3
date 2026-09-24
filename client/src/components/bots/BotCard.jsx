@@ -1,4 +1,5 @@
 import React from "react";
+
 import {
   startBot,
   stopBot,
@@ -6,41 +7,113 @@ import {
   scanBot,
 } from "../../services/api";
 
+import "./bot-card.css";
+
 function BotCard({
   bot,
-  onChanged,
+  onRefresh,
+  longBotCount = 0,
+  shortBotCount = 0,
 }) {
-  if (!bot) {
-    return null;
-  }
+  if (!bot) return null;
 
-  const isAdvanced =
-    bot.botType === "ADVANCED";
+  const config = bot.config || {};
 
-  const config =
-    bot.config || {};
+  const status = String(
+    bot.status || config.status || "STOPPED"
+  ).toUpperCase();
 
-  const analysis =
-    bot.analysis || {};
+  const type = String(
+    bot.type ||
+      bot.botType ||
+      config.type ||
+      "simple"
+  ).toLowerCase();
 
-  const orderBookConfig =
-    bot.orderBookConfig || {};
+  const symbol =
+    bot.symbol ||
+    config.symbol ||
+    bot.name ||
+    "UNKNOWN";
 
-  const cycle =
-    bot.cycle || {};
+  const direction = String(
+    bot.direction ||
+      config.direction ||
+      bot.side ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const entryModel =
+    bot.entryModel ||
+    config.entryModel ||
+    config.model ||
+    "—";
+
+  const orderBookTrend =
+    config.orderBookTrend ??
+    config.trendDepth ??
+    config.orderBookDepth ??
+    200;
+
+  const counterTrend =
+    config.counterTrendRequired ??
+    config.counterTrend ??
+    "—";
+
+  const entryDepths =
+    config.entryDepths ||
+    config.confirmationDepths ||
+    [15, 20, 30, 60];
+
+  const cycleMinutes =
+    config.cycleMinutes ??
+    config.cycle ??
+    "—";
+
+  const maxEntries =
+    config.maxEntries ??
+    config.pyramiding ??
+    config.maxPyramiding ??
+    1;
+
+  const takeProfit =
+    config.tpPercent ??
+    config.takeProfit ??
+    config.tp ??
+    "—";
+
+  const stopLoss =
+    config.slPercent ??
+    config.stopLoss ??
+    config.sl ??
+    "—";
 
   const killZone =
-    bot.killZone || {};
+    bot.killZone ||
+    config.killZone ||
+    {};
 
-  const status =
-    String(
-      bot.status || "STOPPED"
-    ).toUpperCase();
+  const killZoneEnabled = Boolean(
+    killZone.enabled ??
+      config.killZoneEnabled ??
+      false
+  );
 
-  const direction =
-    String(
-      bot.direction || ""
-    ).toUpperCase();
+  const lastScan =
+    bot.lastScan ||
+    bot.lastScanTime ||
+    config.lastScan ||
+    "Never";
+
+  const scanResult =
+    bot.scanResult ||
+    bot.lastScanResult ||
+    config.lastScanResult ||
+    null;
+
+  const isAdvanced =
+    type === "advanced" ||
+    type.includes("advanced");
 
   const isRunning =
     status === "RUNNING";
@@ -48,222 +121,141 @@ function BotCard({
   const isKilled =
     status === "KILLED";
 
-  const trend =
-    String(
-      analysis.trend?.direction ||
-        analysis.trend ||
-        "WAIT"
-    ).toUpperCase();
+  const isLong =
+    direction === "LONG";
 
-  const lastDecision =
-    String(
-      bot.lastDecision ||
-        analysis.decision ||
-        "WAIT"
-    ).toUpperCase();
-
-  const trendDepth =
-    orderBookConfig.trendDepth ??
-    200;
-
-  const entryDepths =
-    orderBookConfig.entryDepths ||
-    [15, 20, 30, 60];
-
-  const counterTrendRequired =
-    Number(
-      orderBookConfig.counterTrendRequired ??
-        config.counterTrendRequired ??
-        3
-    );
-
-  const counterTrendCount =
-    Number(
-      analysis.counterTrendCount ??
-        0
-    );
-
-  const cycleMinutes =
-    Number(
-      cycle.cycleMinutes ??
-        config.cycleMinutes ??
-        10
-    );
-
-  const cycleScanCount =
-    Number(
-      cycle.scanCount ??
-        0
-    );
-
-  const cycleTriggerMinutes =
-    Number(
-      cycle.triggerMinutes ??
-        0
-    );
-
-  const cycleTriggerRequired =
-    Number(
-      cycle.triggerRequired ??
-        config.cycleTriggerMinutes ??
-        3
-    );
-
-  const cycleProgress =
-    Math.min(
-      cycleScanCount,
-      cycleMinutes
-    );
-
-  const entryCount =
-    Number(
-      bot.entryCount ??
-        cycle.entryCount ??
-        0
-    );
-
-  const maxEntries =
-    Number(
-      config.maxEntries ??
-        3
-    );
-
-  const tpPercent =
-    Number(
-      config.tpPercent ??
-        1
-    );
-
-  const slPercent =
-    Number(
-      config.slPercent ??
-        0.8
-    );
-
-  const killReason =
-    bot.killReason ||
-    killZone.reason ||
-    "";
+  const isShort =
+    direction === "SHORT";
 
   // ============================================================
-  // DEPTH RESULT HELPER
+  // CAVEMAN THEME ICONS
   // ============================================================
 
-  function getDepthAnalysis(depth) {
-    if (!analysis.depths) {
-      return null;
+  const tribeIcon = isAdvanced
+    ? "🗿"
+    : "🐒";
+
+  const creatureIcon = isAdvanced
+    ? "🦇"
+    : "🦧";
+
+  const activityIcon = isRunning
+    ? "🔥"
+    : isKilled
+      ? "💀"
+      : "🪨";
+
+  const directionIcon = isLong
+    ? "↑"
+    : isShort
+      ? "↓"
+      : "•";
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  const formatValue = (value) => {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return "—";
     }
 
-    if (Array.isArray(analysis.depths)) {
-      return (
-        analysis.depths.find(
-          (item) =>
-            Number(item.depth) ===
-            Number(depth)
-        ) || null
-      );
+    if (typeof value === "boolean") {
+      return value ? "ON" : "OFF";
     }
 
-    return (
-      analysis.depths[String(depth)] ||
-      analysis.depths[depth] ||
-      null
-    );
-  }
+    return String(value);
+  };
 
-  function getDirectionClass(value) {
-    const normalized =
-      String(value || "WAIT")
-        .toUpperCase();
-
-    if (normalized === "LONG") {
-      return "long";
+  const formatPercent = (value) => {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return "—";
     }
 
-    if (normalized === "SHORT") {
-      return "short";
+    const text = String(value);
+
+    if (text.includes("%")) {
+      return text;
     }
 
+    return `${text}%`;
+  };
+
+  const formatDepths = () => {
+    if (Array.isArray(entryDepths)) {
+      return entryDepths.join(" / ");
+    }
+
+    return String(entryDepths);
+  };
+
+  const getDirectionClass = () => {
+    if (isLong) return "long";
+    if (isShort) return "short";
     return "neutral";
-  }
-
-  function formatPercent(value) {
-    if (
-      value === undefined ||
-      value === null ||
-      !Number.isFinite(
-        Number(value)
-      )
-    ) {
-      return "-";
-    }
-
-    return `${(
-      Number(value) * 100
-    ).toFixed(2)}%`;
-  }
-
-  function formatNumber(value) {
-    if (
-      value === undefined ||
-      value === null ||
-      !Number.isFinite(
-        Number(value)
-      )
-    ) {
-      return "-";
-    }
-
-    return Number(value).toFixed(4);
-  }
+  };
 
   // ============================================================
   // ACTIONS
   // ============================================================
 
-  async function handleStart() {
+  const handleStart = async () => {
     try {
       await startBot(bot.id);
-      onChanged?.();
+
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error) {
       console.error(
-        "[BotCard] Start failed:",
+        `[BotCard:${symbol}] Start failed`,
         error
       );
     }
-  }
+  };
 
-  async function handleStop() {
+  const handleStop = async () => {
     try {
       await stopBot(bot.id);
-      onChanged?.();
+
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error) {
       console.error(
-        "[BotCard] Stop failed:",
+        `[BotCard:${symbol}] Stop failed`,
         error
       );
     }
-  }
+  };
 
-  async function handleScan() {
+  const handleScan = async () => {
     try {
       await scanBot(bot.id);
-      onChanged?.();
+
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error) {
       console.error(
-        "[BotCard] Scan failed:",
+        `[BotCard:${symbol}] Scan failed`,
         error
       );
     }
-  }
+  };
 
-  async function handleRemove() {
-    const confirmed =
-      window.confirm(
-        `Delete bot ${
-          bot.id
-        }?`
-      );
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+      `Remove ${symbol} bot?`
+    );
 
     if (!confirmed) {
       return;
@@ -271,179 +263,247 @@ function BotCard({
 
     try {
       await removeBot(bot.id);
-      onChanged?.();
+
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error) {
       console.error(
-        "[BotCard] Remove failed:",
+        `[BotCard:${symbol}] Delete failed`,
         error
       );
     }
-  }
+  };
+  
+  // ============================================================
+  // STACK INFORMATION
+  // ============================================================
 
-  // ============================================================
-  // RENDER
-  // ============================================================
+  const showLongStack =
+    isLong &&
+    longBotCount > 2;
+
+  const showShortStack =
+    isShort &&
+    shortBotCount > 2;
 
   return (
-    <div className="bot-card">
+    <div
+      className={`bot-card ${
+        isAdvanced
+          ? "advanced-card"
+          : "simple-card"
+      } ${getDirectionClass()}`}
+    >
       {/* ======================================================
           HEADER
-      ======================================================= */}
+      ====================================================== */}
 
       <div className="bot-card-header">
-        <div>
-          <h3>
-            {bot.symbol}
-          </h3>
+
+        <div className="bot-card-title">
+
+          <div className="bot-card-icon">
+            <span>{tribeIcon}</span>
+            <small>{creatureIcon}</small>
+          </div>
 
           <div>
-            {isAdvanced
-              ? "ADVANCED"
-              : "SIMPLE"}
+            <h3>
+              {symbol}
+            </h3>
+
+            <div className="bot-card-type">
+              {isAdvanced
+                ? "🗿 ADVANCED CAVEMAN"
+                : "🐒 SIMPLE MONKEY"}
+            </div>
           </div>
+
         </div>
 
-        <div>
-          <strong>
-            {status}
-          </strong>
+        <div
+          className={`bot-status ${status.toLowerCase()}`}
+        >
+          <span className="bot-status-dot" />
+
+          {activityIcon}
+
+          {status}
         </div>
+
       </div>
 
       {/* ======================================================
-          BASIC INFO
-      ======================================================= */}
+          TRADING DIRECTION
+      ====================================================== */}
 
-      <div className="bot-card-section">
-        <div>
-          <strong>
-            Direction
-          </strong>
+      <div className="bot-card-section direction-section">
 
-          <span>
-            {direction}
-          </span>
+        <h4>
+          🔥 TRADING DIRECTION
+        </h4>
+
+        <div className="direction-main">
+
+          <div
+            className={`direction-badge ${getDirectionClass()}`}
+          >
+            <span className="direction-arrow">
+              {directionIcon}
+            </span>
+
+            <strong>
+              {direction}
+            </strong>
+          </div>
+
+          <div className="direction-creature">
+            {isLong
+              ? "🦇"
+              : isShort
+                ? "🦇"
+                : "🪨"}
+          </div>
+
         </div>
 
-        <div>
+        <div className="bot-card-row">
           <strong>
             Entry Model
           </strong>
 
           <span>
-            {config.entryModel ||
-              bot.entryModel ||
-              (isAdvanced
-                ? "ORDERBOOK"
-                : "-")}
+            {formatValue(entryModel)}
           </span>
         </div>
+
       </div>
 
       {/* ======================================================
-          ADVANCED BOT
-      ======================================================= */}
+          STACK WARNING
+      ====================================================== */}
+
+      {showLongStack && (
+        <div className="tribe-stack long-stack">
+
+          <div className="tribe-stack-title">
+            🦇 LONG TRIBE
+          </div>
+
+          <div className="tribe-stack-count">
+            ↑ {longBotCount} LONG BOTS
+          </div>
+
+          <div className="tribe-stack-warning">
+            🔥 MORE LONG EXPOSURE
+          </div>
+
+          <div className="tribe-stack-arrow">
+            ↓
+          </div>
+
+        </div>
+      )}
+
+      {showShortStack && (
+        <div className="tribe-stack short-stack">
+
+          <div className="tribe-stack-title">
+            🦇 SHORT TRIBE
+          </div>
+
+          <div className="tribe-stack-count">
+            ↓ {shortBotCount} SHORT BOTS
+          </div>
+
+          <div className="tribe-stack-warning">
+            🔥 MORE SHORT EXPOSURE
+          </div>
+
+          <div className="tribe-stack-arrow">
+            ↑
+          </div>
+
+        </div>
+      )}
+
+      {/* ======================================================
+          ADVANCED
+      ====================================================== */}
 
       {isAdvanced && (
         <>
-          {/* --------------------------------------------------
-              ORDER BOOK TREND
-          --------------------------------------------------- */}
-
           <div className="bot-card-section">
+
             <h4>
-              ORDER BOOK TREND
+              🗿🔥 ORDER FLOW CAVEMAN
             </h4>
 
-            <div>
+            <div className="bot-card-row">
               <strong>
-                {trendDepth} Levels
+                🦴 Order Book Trend
               </strong>
 
-              <span
-                className={
-                  getDirectionClass(
-                    trend
-                  )
-                }
-              >
-                {trend}
+              <span>
+                {formatValue(orderBookTrend)}
               </span>
             </div>
 
-            <div>
+            <div className="bot-card-row">
               <strong>
-                Bot Direction
+                🐗 Counter-Trend
               </strong>
 
-              <span
-                className={
-                  getDirectionClass(
-                    direction
-                  )
-                }
-              >
-                {direction}
+              <span>
+                {formatValue(counterTrend)}
               </span>
             </div>
+
+            <div className="bot-card-row">
+              <strong>
+                🔥 Entry Depths
+              </strong>
+
+              <span>
+                {formatDepths()}
+              </span>
+            </div>
+
           </div>
 
-          {/* --------------------------------------------------
-              ENTRY DEPTHS
-          --------------------------------------------------- */}
+          {/* ENTRY DEPTH VISUAL */}
 
           <div className="bot-card-section">
+
             <h4>
-              COUNTER-TREND ENTRY
+              🦴 ENTRY DEPTHS
             </h4>
 
-            <div>
-              <strong>
-                Required
-              </strong>
-
-              <span>
-                {counterTrendRequired}
-                {" / "}
-                {entryDepths.length}
-              </span>
-            </div>
-
-            <div>
-              <strong>
-                Current
-              </strong>
-
-              <span>
-                {counterTrendCount}
-                {" / "}
-                {entryDepths.length}
-              </span>
-            </div>
-
             <div className="depth-grid">
-              {entryDepths.map(
+
+              {[15, 20, 30, 60].map(
                 (depth) => {
-                  const item =
-                    getDepthAnalysis(
-                      depth
-                    );
+
+                  const depthData =
+                    scanResult?.depths?.[depth] ||
+                    scanResult?.depth?.[depth] ||
+                    null;
 
                   const depthDirection =
-                    String(
-                      item?.direction ||
-                        "WAIT"
-                    ).toUpperCase();
+                    depthData?.direction ||
+                    depthData?.signal ||
+                    "NEUTRAL";
 
-                  const passed =
-                    item?.direction &&
-                    depthDirection !==
-                      "WAIT";
+                  const depthClass =
+                    String(
+                      depthDirection
+                    ).toLowerCase();
 
                   return (
                     <div
-                      key={depth}
                       className="depth-card"
+                      key={depth}
                     >
                       <strong>
                         {depth}
@@ -451,323 +511,226 @@ function BotCard({
 
                       <span
                         className={
-                          getDirectionClass(
-                            depthDirection
-                          )
+                          depthClass === "long"
+                            ? "long"
+                            : depthClass === "short"
+                              ? "short"
+                              : "neutral"
                         }
                       >
-                        {depthDirection}
+                        {depthClass ===
+                        "long"
+                          ? "↑ LONG"
+                          : depthClass ===
+                            "short"
+                            ? "↓ SHORT"
+                            : "• NEUTRAL"}
                       </span>
 
                       <small>
-                        Imbalance:{" "}
-                        {formatNumber(
-                          item?.imbalance
-                        )}
+                        {depthData?.reason ||
+                          "Waiting for scan"}
                       </small>
 
-                      <small>
-                        Bid/Ask:{" "}
-                        {formatNumber(
-                          item?.bidAskRatio
-                        )}
-                      </small>
-
-                      <small>
-                        Ask/Bid:{" "}
-                        {formatNumber(
-                          item?.askBidRatio
-                        )}
-                      </small>
-
-                      <small>
-                        {passed
-                          ? "READING"
-                          : "WAIT"}
-                      </small>
                     </div>
                   );
                 }
               )}
+
             </div>
+
           </div>
 
-          {/* --------------------------------------------------
-              CYCLE
-          --------------------------------------------------- */}
+          {/* BOT SETTINGS */}
 
           <div className="bot-card-section">
+
             <h4>
-              10-MINUTE CYCLE
+              🦴 CAVEMAN SETTINGS
             </h4>
 
-            <div>
+            <div className="bot-card-row">
               <strong>
-                Scan Progress
+                ⏱️ Cycle
               </strong>
 
               <span>
-                {cycleProgress}
-                {" / "}
-                {cycleMinutes}
+                {formatValue(
+                  cycleMinutes
+                )} min
               </span>
             </div>
 
-            <div>
+            <div className="bot-card-row">
               <strong>
-                Trigger Minutes
+                🪵 Pyramiding
               </strong>
 
               <span>
-                {cycleTriggerMinutes}
-                {" / "}
-                {cycleTriggerRequired}
+                {formatValue(maxEntries)}
               </span>
             </div>
 
-            <div>
+            <div className="bot-card-row">
               <strong>
-                Final Decision
+                🎯 Take Profit
+              </strong>
+
+              <span>
+                {formatPercent(
+                  takeProfit
+                )}
+              </span>
+            </div>
+
+            <div className="bot-card-row">
+              <strong>
+                🛡️ Stop Loss
+              </strong>
+
+              <span>
+                {formatPercent(
+                  stopLoss
+                )}
+              </span>
+            </div>
+
+            <div className="bot-card-row">
+              <strong>
+                🔥 Kill Zone
               </strong>
 
               <span
                 className={
-                  getDirectionClass(
-                    lastDecision
-                  )
+                  killZoneEnabled
+                    ? "enabled"
+                    : "disabled"
                 }
               >
-                {lastDecision}
-              </span>
-            </div>
-          </div>
-
-          {/* --------------------------------------------------
-              PYRAMIDING
-          --------------------------------------------------- */}
-
-          <div className="bot-card-section">
-            <h4>
-              PYRAMIDING
-            </h4>
-
-            <div>
-              <strong>
-                Entries
-              </strong>
-
-              <span>
-                {entryCount}
-                {" / "}
-                {maxEntries}
+                {killZoneEnabled
+                  ? "🔥 ON"
+                  : "🪨 OFF"}
               </span>
             </div>
 
-            <div>
-              <strong>
-                Next Entry
-              </strong>
-
-              <span>
-                {entryCount >=
-                maxEntries
-                  ? "MAX REACHED"
-                  : `ENTRY ${
-                      entryCount + 1
-                    }`}
-              </span>
-            </div>
-          </div>
-
-          {/* --------------------------------------------------
-              TP / SL
-          --------------------------------------------------- */}
-
-          <div className="bot-card-section">
-            <h4>
-              TP / SL
-            </h4>
-
-            <div>
-              <strong>
-                TP
-              </strong>
-
-              <span>
-                {tpPercent}%
-              </span>
-            </div>
-
-            <div>
-              <strong>
-                SL
-              </strong>
-
-              <span>
-                {slPercent}%
-              </span>
-            </div>
-          </div>
-
-          {/* --------------------------------------------------
-              PRICE KILL ZONE
-          --------------------------------------------------- */}
-
-          <div className="bot-card-section">
-            <h4>
-              PRICE KILL ZONE
-            </h4>
-
-            <div>
-              <strong>
-                Status
-              </strong>
-
-              <span>
-                {killZone.enabled ??
-                config.killZoneEnabled
-                  ? "ON"
-                  : "OFF"}
-              </span>
-            </div>
-
-            {(killZone.enabled ??
-              config.killZoneEnabled) && (
-              <>
-                <div>
-                  <strong>
-                    Low
-                  </strong>
-
-                  <span>
-                    {killZone.low ??
-                      config.killZoneLow ??
-                      "-"}
-                  </span>
-                </div>
-
-                <div>
-                  <strong>
-                    High
-                  </strong>
-
-                  <span>
-                    {killZone.high ??
-                      config.killZoneHigh ??
-                      "-"}
-                  </span>
-                </div>
-              </>
-            )}
-
-            {isKilled && (
-              <div>
-                <strong>
-                  Kill Reason
-                </strong>
-
-                <span>
-                  {killReason ||
-                    "BOT KILLED"}
-                </span>
-              </div>
-            )}
           </div>
         </>
       )}
 
       {/* ======================================================
-          SIMPLE BOT
-      ======================================================= */}
+          SIMPLE
+      ====================================================== */}
 
       {!isAdvanced && (
         <div className="bot-card-section">
-          <div>
+
+          <h4>
+            🐒 MONKEY SETTINGS
+          </h4>
+
+          <div className="bot-card-row">
             <strong>
-              TP
+              🎯 Take Profit
             </strong>
 
             <span>
-              {config.tpPercent ??
-                bot.tpPercent ??
-                "-"}
-              %
+              {formatPercent(
+                takeProfit
+              )}
             </span>
           </div>
 
-          <div>
+          <div className="bot-card-row">
             <strong>
-              SL
+              🛡️ Stop Loss
             </strong>
 
             <span>
-              {config.slPercent ??
-                bot.slPercent ??
-                "-"}
-              %
+              {formatPercent(
+                stopLoss
+              )}
             </span>
           </div>
+
         </div>
       )}
 
       {/* ======================================================
           LAST SCAN
-      ======================================================= */}
+      ====================================================== */}
 
-      <div className="bot-card-section">
-        <div>
+      <div className="bot-card-section last-scan">
+
+        <h4>
+          👀 LAST SCAN
+        </h4>
+
+        <div className="bot-card-row">
           <strong>
-            Last Scan
+            Time
           </strong>
 
           <span>
-            {bot.lastScanAt ||
-              bot.lastScan ||
-              "-"}
+            {formatValue(lastScan)}
           </span>
         </div>
+
+        {scanResult && (
+          <div className="bot-card-row">
+            <strong>
+              Result
+            </strong>
+
+            <span>
+              {formatValue(
+                scanResult.reason ||
+                scanResult.status ||
+                scanResult.signal
+              )}
+            </span>
+          </div>
+        )}
+
       </div>
 
       {/* ======================================================
           ACTIONS
-      ======================================================= */}
+      ====================================================== */}
 
       <div className="bot-card-actions">
-        {!isRunning &&
-          !isKilled && (
-            <button
-              type="button"
-              onClick={handleStart}
-            >
-              Start
-            </button>
-          )}
 
-        {isRunning && (
+        {!isRunning ? (
           <button
-            type="button"
+            className="bot-btn start-btn"
+            onClick={handleStart}
+          >
+            🔥 START
+          </button>
+        ) : (
+          <button
+            className="bot-btn stop-btn"
             onClick={handleStop}
           >
-            Stop
-          </button>
-        )}
-
-        {isAdvanced && (
-          <button
-            type="button"
-            onClick={handleScan}
-          >
-            Scan
+            🪨 STOP
           </button>
         )}
 
         <button
-          type="button"
-          onClick={handleRemove}
+          className="bot-btn scan-btn"
+          onClick={handleScan}
         >
-          Delete
+          👀 SCAN
         </button>
+
+        <button
+          className="bot-btn delete-btn"
+          onClick={handleDelete}
+        >
+          🦴 DELETE
+        </button>
+
       </div>
+
     </div>
   );
 }

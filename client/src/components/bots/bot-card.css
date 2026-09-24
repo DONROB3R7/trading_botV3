@@ -1,0 +1,656 @@
+/* ============================================================
+   CAVEMAN BOT CARD
+   ============================================================ */
+
+.bot-card {
+  background: #ffffff;
+  border: 1px solid #d7e0ea;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 5px 18px rgba(20, 40, 70, 0.08);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.bot-card:hover {
+  transform: translateY(-2px);
+  border-color: #9eb3c8;
+  box-shadow: 0 9px 24px rgba(20, 40, 70, 0.13);
+}
+
+/* Small caveman top line */
+
+.bot-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #64748b;
+}
+
+.bot-card.advanced-card::before {
+  background: #374151;
+}
+
+.bot-card.simple-card::before {
+  background: #94a3b8;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.bot-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.bot-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bot-card-icon {
+  width: 50px;
+  height: 50px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #f1f5f9;
+  border: 1px solid #d6e0e9;
+  border-radius: 12px;
+
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bot-card-icon > span {
+  font-size: 28px;
+}
+
+.bot-card-icon small {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+
+  width: 22px;
+  height: 22px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #ffffff;
+  border: 1px solid #d5dee7;
+  border-radius: 50%;
+
+  font-size: 13px;
+}
+
+.bot-card h3 {
+  margin: 0;
+
+  font-size: 19px;
+  font-weight: 900;
+
+  color: #17212b;
+}
+
+.bot-card-type {
+  margin-top: 3px;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.9px;
+
+  color: #718096;
+}
+
+/* ============================================================
+   STATUS
+   ============================================================ */
+
+.bot-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 9px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.4px;
+
+  border: 1px solid #d8e0e8;
+
+  background: #f5f7fa;
+  color: #687585;
+
+  white-space: nowrap;
+}
+
+.bot-status-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #9aa5b1;
+}
+
+.bot-status.running {
+  background: #edf9f1;
+  border-color: #b9e4c5;
+  color: #217a3d;
+}
+
+.bot-status.running .bot-status-dot {
+  background: #2db957;
+  box-shadow:
+    0 0 0 3px rgba(45, 185, 87, 0.12);
+}
+
+.bot-status.stopped {
+  background: #f4f5f7;
+  border-color: #dce1e6;
+  color: #68717c;
+}
+
+.bot-status.stopped .bot-status-dot {
+  background: #929ba5;
+}
+
+.bot-status.killed {
+  background: #fff0f0;
+  border-color: #f0bcbc;
+  color: #b42323;
+}
+
+.bot-status.killed .bot-status-dot {
+  background: #df3333;
+}
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+
+.bot-card-section {
+  margin-top: 12px;
+
+  padding: 13px;
+
+  background: #f8fafc;
+
+  border: 1px solid #e3e9ef;
+  border-radius: 10px;
+}
+
+.bot-card-section h4 {
+  margin: 0 0 11px 0;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.8px;
+
+  color: #536273;
+}
+
+.bot-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  min-height: 30px;
+}
+
+.bot-card-row + .bot-card-row {
+  border-top: 1px solid #e8edf2;
+}
+
+.bot-card-row strong {
+  font-size: 11px;
+  font-weight: 700;
+  color: #687585;
+}
+
+.bot-card-row span {
+  font-size: 12px;
+  font-weight: 800;
+
+  color: #1e2935;
+
+  text-align: right;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.bot-card-row span.enabled {
+  color: #16803a;
+}
+
+.bot-card-row span.disabled {
+  color: #7a8591;
+}
+
+/* ============================================================
+   DIRECTION
+   ============================================================ */
+
+.direction-section {
+  background: #fbfcfe;
+}
+
+.direction-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 8px;
+}
+
+.direction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 8px 13px;
+
+  border-radius: 9px;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  border: 1px solid;
+}
+
+.direction-arrow {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.direction-badge.long {
+  color: #137333;
+  background: #eaf8ef;
+  border-color: #b8dfc3;
+}
+
+.direction-badge.short {
+  color: #bd2929;
+  background: #fff0f0;
+  border-color: #efbcbc;
+}
+
+.direction-badge.neutral {
+  color: #687585;
+  background: #f1f3f5;
+  border-color: #dce1e6;
+}
+
+.direction-creature {
+  font-size: 29px;
+}
+
+/* ============================================================
+   TRIBE STACK
+   ============================================================ */
+
+.tribe-stack {
+  margin-top: 12px;
+  padding: 13px;
+
+  border-radius: 11px;
+
+  text-align: center;
+
+  position: relative;
+
+  overflow: hidden;
+}
+
+.long-stack {
+  background: #fff8ed;
+  border: 1px solid #f0d4a7;
+}
+
+.short-stack {
+  background: #fff0f0;
+  border: 1px solid #edbcbc;
+}
+
+.tribe-stack-title {
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 1px;
+
+  color: #596574;
+}
+
+.tribe-stack-count {
+  margin-top: 5px;
+
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.long-stack .tribe-stack-count {
+  color: #16803a;
+}
+
+.short-stack .tribe-stack-count {
+  color: #c22d2d;
+}
+
+.tribe-stack-warning {
+  margin-top: 3px;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  color: #7a6570;
+}
+
+.tribe-stack-arrow {
+  margin-top: 3px;
+
+  font-size: 19px;
+  font-weight: 900;
+
+  color: #7a8591;
+}
+
+/* ============================================================
+   DEPTH GRID
+   ============================================================ */
+
+.depth-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 8px;
+
+  margin-top: 10px;
+}
+
+.depth-card {
+  display: flex !important;
+
+  flex-direction: column;
+
+  align-items: stretch !important;
+
+  justify-content: flex-start !important;
+
+  gap: 4px;
+
+  min-height: 92px;
+
+  padding: 10px;
+
+  background: #ffffff;
+
+  border: 1px solid #dce4ec;
+
+  border-radius: 8px;
+
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.depth-card:hover {
+  border-color: #aabccc;
+  transform: translateY(-1px);
+}
+
+.depth-card strong {
+  font-size: 13px;
+  color: #263443;
+}
+
+.depth-card span {
+  align-self: flex-start;
+
+  font-size: 10px;
+
+  padding: 3px 6px;
+
+  border-radius: 5px;
+
+  background: #f0f3f6;
+}
+
+.depth-card span.long {
+  color: #16803a;
+  background: #eaf8ef;
+}
+
+.depth-card span.short {
+  color: #c22d2d;
+  background: #fff0f0;
+}
+
+.depth-card span.neutral {
+  color: #737e89;
+  background: #f1f3f5;
+}
+
+.depth-card small {
+  display: block;
+
+  font-size: 9px;
+
+  line-height: 1.4;
+
+  color: #7b8794;
+}
+
+/* ============================================================
+   LAST SCAN
+   ============================================================ */
+
+.last-scan {
+  background: #f9fbfd;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.bot-card-actions {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 8px;
+
+  margin-top: 15px;
+}
+
+.bot-btn {
+  min-height: 38px;
+
+  border: 1px solid #ccd6e0;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #273444;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  letter-spacing: 0.3px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.bot-btn:hover {
+  transform: translateY(-1px);
+}
+
+.bot-btn:active {
+  transform: translateY(1px);
+}
+
+.start-btn {
+  background: #edf9f1;
+  border-color: #b9e4c5;
+  color: #217a3d;
+}
+
+.start-btn:hover {
+  background: #ddf4e5;
+  border-color: #8dcc9e;
+}
+
+.stop-btn {
+  background: #fff3f3;
+  border-color: #efc3c3;
+  color: #b42323;
+}
+
+.stop-btn:hover {
+  background: #ffe5e5;
+  border-color: #e3a2a2;
+}
+
+.scan-btn {
+  background: #eef4fa;
+  border-color: #cbd9e7;
+  color: #315b7d;
+}
+
+.scan-btn:hover {
+  background: #e3edf7;
+  border-color: #aebfd1;
+}
+
+.delete-btn {
+  background: #fafafa;
+  border-color: #d9dfe5;
+  color: #68717c;
+}
+
+.delete-btn:hover {
+  background: #f2f3f5;
+  border-color: #c3cbd3;
+  color: #b42323;
+}
+
+/* ============================================================
+   ADVANCED CAVEMAN
+   ============================================================ */
+
+.advanced-card .bot-card-section:first-of-type {
+  border-left: 3px solid #64748b;
+}
+
+.advanced-card .bot-card-type {
+  color: #475569;
+}
+
+/* ============================================================
+   SIMPLE MONKEY
+   ============================================================ */
+
+.simple-card .bot-card-type {
+  color: #7c6a43;
+}
+
+.simple-card .bot-card-section {
+  border-left: 3px solid #c7b68a;
+}
+
+/* ============================================================
+   LONG CARD
+   ============================================================ */
+
+.bot-card.long {
+  border-top-color: #9fd3ae;
+}
+
+/* ============================================================
+   SHORT CARD
+   ============================================================ */
+
+.bot-card.short {
+  border-top-color: #e3a5a5;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 700px) {
+
+  .bot-card {
+    padding: 14px;
+  }
+
+  .bot-card-header {
+    align-items: flex-start;
+  }
+
+  .bot-status {
+    font-size: 9px;
+  }
+
+  .depth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 430px) {
+
+  .bot-card-header {
+    flex-direction: column;
+  }
+
+  .bot-status {
+    align-self: flex-start;
+  }
+
+  .bot-card-icon {
+    width: 45px;
+    height: 45px;
+  }
+
+}

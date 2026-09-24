@@ -1,4 +1,5 @@
 import BotCard from "./BotCard";
+import "./BotList.css";
 
 export default function BotList({
   bots,
@@ -9,14 +10,20 @@ export default function BotList({
     bots.length === 0
   ) {
     return (
-      <div>
-        No bots created yet.
+      <div className="bot-list-empty">
+        <div className="empty-icon">🦍</div>
+
+        <h3>No bots created yet</h3>
+
+        <p>
+          Caveman has no bots. Time to make banana machine. 🍌
+        </p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="bot-list">
       {bots.map(
         (bot) => (
           <BotCard

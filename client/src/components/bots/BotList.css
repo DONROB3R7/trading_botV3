@@ -1,0 +1,84 @@
+/* ============================================================
+   BOT LIST
+   ============================================================ */
+
+.bot-list {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(320px, 1fr)
+  );
+  gap: 18px;
+}
+
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+
+.bot-list-empty {
+  width: 100%;
+  padding: 50px 24px;
+  text-align: center;
+
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+
+  animation: empty-monkey-bounce 2s ease-in-out infinite;
+}
+
+.bot-list-empty h3 {
+  margin: 0 0 8px;
+
+  font-size: 20px;
+  font-weight: 700;
+
+  color: #1f2937;
+}
+
+.bot-list-empty p {
+  margin: 0;
+
+  color: #6b7280;
+  font-size: 14px;
+}
+
+
+/* ============================================================
+   ANIMATION
+   ============================================================ */
+
+@keyframes empty-monkey-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 700px) {
+  .bot-list {
+    grid-template-columns: 1fr;
+  }
+
+  .bot-list-empty {
+    padding: 40px 18px;
+  }
+}
